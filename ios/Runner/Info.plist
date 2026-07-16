@@ -15,7 +15,9 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>nexus</string>
+	<string>Nexus</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Authenticate to sign in to Nexus</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
