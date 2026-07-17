@@ -1,12 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:nexus/core/enums/user_role.dart';
+import 'package:nexus/core/utils/legal_docs_sheets.dart';
 
 /// Modern role selection — animated cards, elegant typography.
-class RoleSelectionScreen extends StatelessWidget {
+class RoleSelectionScreen extends StatefulWidget {
   final void Function(UserRole role) onRoleSelected;
 
   const RoleSelectionScreen({super.key, required this.onRoleSelected});
+
+  @override
+  State<RoleSelectionScreen> createState() => _RoleSelectionScreenState();
+}
+
+class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
+  late TapGestureRecognizer _tosRecognizer;
+  late TapGestureRecognizer _privacyRecognizer;
+
+  @override
+  void initState() {
+    super.initState();
+    _tosRecognizer = TapGestureRecognizer()
+      ..onTap = () {
+        showTosSheet(context, Theme.of(context));
+      };
+    _privacyRecognizer = TapGestureRecognizer()
+      ..onTap = () {
+        showPrivacySheet(context, Theme.of(context));
+      };
+  }
+
+  @override
+  void dispose() {
+    _tosRecognizer.dispose();
+    _privacyRecognizer.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,6 +53,38 @@ class RoleSelectionScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Hero(
+                        tag: 'app_logo',
+                        child: Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                                blurRadius: 16,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.asset(
+                              'assets/icons/app_logo.png',
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const _LoopingTypewriter(text: 'Excelerate'),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
                   Text(
                     'Welcome to Nexus',
                     style: theme.textTheme.headlineMedium?.copyWith(
@@ -43,7 +105,39 @@ class RoleSelectionScreen extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 16),
                       child: _RoleCard(
                         role: role,
-                        onTap: () => onRoleSelected(role),
+                        onTap: () => widget.onRoleSelected(role),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  Center(
+                    child: RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        children: [
+                          const TextSpan(text: 'By continuing, you agree to our '),
+                          TextSpan(
+                            text: 'Terms of Service',
+                            style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            recognizer: _tosRecognizer,
+                          ),
+                          const TextSpan(text: ' and '),
+                          TextSpan(
+                            text: 'Privacy Policy',
+                            style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            recognizer: _privacyRecognizer,
+                          ),
+                          const TextSpan(text: '.'),
+                        ],
                       ),
                     ),
                   ),
@@ -194,6 +288,56 @@ class _RoleCardState extends State<_RoleCard> with SingleTickerProviderStateMixi
           ),
         ),
       ),
+    );
+  }
+}
+
+class _LoopingTypewriter extends StatefulWidget {
+  final String text;
+  const _LoopingTypewriter({required this.text});
+
+  @override
+  State<_LoopingTypewriter> createState() => _LoopingTypewriterState();
+}
+
+class _LoopingTypewriterState extends State<_LoopingTypewriter> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<int> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 2000));
+    _animation = IntTween(begin: 0, end: widget.text.length).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.1, 0.9, curve: Curves.linear),
+      ),
+    );
+    _controller.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Text(
+          widget.text.substring(0, _animation.value),
+          style: Theme.of(context).textTheme.displaySmall?.copyWith(
+            fontFamily: 'Kameron',
+            fontWeight: FontWeight.w800,
+            color: Theme.of(context).colorScheme.onSurface,
+            letterSpacing: -1,
+          ),
+        );
+      },
     );
   }
 }

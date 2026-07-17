@@ -1,4 +1,5 @@
 import 'package:go_router/go_router.dart';
+import 'package:nexus/app/theme_controller.dart';
 import 'package:nexus/features/auth/presentation/providers/auth_controller.dart';
 import 'package:nexus/features/auth/presentation/screens/splash_screen.dart';
 import 'package:nexus/features/auth/presentation/screens/role_selection_screen.dart';
@@ -16,7 +17,10 @@ class NexusRouter {
   static const String home = '/home';
 
   /// Creates the GoRouter instance bound to [authController].
-  static GoRouter create(AuthController authController) {
+  static GoRouter create(
+    AuthController authController, {
+    ThemeController? themeController,
+  }) {
     // Track splash completion
     bool splashDone = false;
 
@@ -77,6 +81,7 @@ class NexusRouter {
           path: home,
           builder: (context, state) => HomeScreen(
             authController: authController,
+            themeController: themeController,
           ),
         ),
       ],
