@@ -602,7 +602,6 @@ class _AdminHero extends StatelessWidget {
             _buildAction(context, HugeIcons.strokeRoundedUserAdd01, 'Add User', theme, () => _handleAddUser(context, theme)),
             _buildAction(context, HugeIcons.strokeRoundedFolderAdd, 'New Program', theme, () => _handleNewProgram(context, theme)),
             _buildAction(context, HugeIcons.strokeRoundedAnalytics01, 'Reports', theme, () => _handleReports(context, theme)),
-            _buildAction(context, HugeIcons.strokeRoundedSettings02, 'Settings', theme, () => _handleSettings(context, theme)),
           ],
         ),
       ],
@@ -732,10 +731,6 @@ class _AdminHero extends StatelessWidget {
         ),
       ]
     ));
-  }
-
-  void _handleSettings(BuildContext context, ThemeData theme) {
-     showGlassSnackbar(context, 'Use the Settings tab below to configure platform preferences.');
   }
 }
 
