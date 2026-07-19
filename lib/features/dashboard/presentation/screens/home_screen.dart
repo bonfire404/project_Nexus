@@ -253,6 +253,16 @@ class _HomeDashboard extends StatelessWidget {
           const SizedBox(height: 36),
           _buildStatsRow(context),
           const SizedBox(height: 36),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.explore),
+              title: const Text('Explore Programs'),
+              subtitle: const Text('Find the best program for your career'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: onExplorePressed,
+            ),
+          ),
+          const SizedBox(height: 36),
           _buildActivitySection(context),
           const SizedBox(height: 80),
         ],
@@ -371,16 +381,6 @@ class _HomeDashboard extends StatelessWidget {
                 Expanded(child: _UnifiedDataSegment(stat: stats[1], theme: theme, isTransparent: true)),
                 Expanded(child: _UnifiedDataSegment(stat: stats[2], theme: theme, isTransparent: true)),
               ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.explore),
-              title: const Text('Explore Programs'),
-              subtitle: const Text('Find the best program for your career'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: onExplorePressed,
             ),
           ),
         ],
