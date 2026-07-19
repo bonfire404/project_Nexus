@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:nexus/core/enums/user_role.dart';
 import 'package:nexus/features/auth/presentation/providers/auth_controller.dart';
+import 'package:nexus/features/programs/presentation/screens/program_listing_screen.dart';
 
 /// Main shell with bottom navigation — role-aware tabs.
 class HomeScreen extends StatefulWidget {
@@ -89,7 +90,19 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _currentIndex,
         children: items.map((item) {
           if (item.label == 'Home' || item.label == 'Dashboard') {
-            return _HomeDashboard(role: role, theme: theme);
+            return _HomeDashboard(
+              role: role, 
+              theme: theme,
+              onExplorePressed: () {
+                final discoverIndex = items.indexWhere((i) => i.label == 'Discover' || i.label == 'Programs');
+                if (discoverIndex != -1) {
+                  setState(() => _currentIndex = discoverIndex);
+                }
+              },
+            );
+          }
+          if (item.label == 'Discover' || item.label == 'Programs') {
+            return const ProgramListingScreen();
           }
           return _PlaceholderTab(label: item.label, theme: theme);
         }).toList(),
@@ -136,7 +149,7 @@ class _FloatingNavBar extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
+                color: Colors.black.withOpacity(0.05),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
@@ -189,8 +202,13 @@ class _FloatingNavBar extends StatelessWidget {
 class _HomeDashboard extends StatelessWidget {
   final UserRole? role;
   final ThemeData theme;
+  final VoidCallback onExplorePressed;
 
-  const _HomeDashboard({required this.role, required this.theme});
+  const _HomeDashboard({
+    required this.role,
+    required this.theme,
+    required this.onExplorePressed,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -211,6 +229,16 @@ class _HomeDashboard extends StatelessWidget {
             'Your dashboard will appear here.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.explore),
+              title: const Text('Explore Programs'),
+              subtitle: const Text('Find the best program for your career'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: onExplorePressed,
             ),
           ),
         ],
