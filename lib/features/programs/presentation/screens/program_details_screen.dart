@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nexus/features/programs/domain/entities/program.dart';
 import 'package:nexus/features/programs/presentation/screens/program_listing_screen.dart';
+import 'package:nexus/core/utils/snackbar_utils.dart';
 
 class ProgramDetailsScreen extends StatelessWidget {
   final String programId;
@@ -66,8 +67,10 @@ class ProgramDetailsScreen extends StatelessWidget {
                     height: 50,
                     child: ElevatedButton(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Successfully applied to program!')),
+                        showGlassSnackbar(
+                          context,
+                          'Successfully applied to program!',
+                          type: SnackbarType.success,
                         );
                       },
                       child: const Text('Enroll Now'),
