@@ -65,7 +65,17 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (label) {
       case 'Home':
       case 'Dashboard':
-        return _HomeDashboard(role: _auth.selectedRole, theme: theme);
+        return _HomeDashboard(
+          role: _auth.selectedRole, 
+          theme: theme,
+          onExplorePressed: () {
+            final items = _navItems;
+            final discoverIndex = items.indexWhere((i) => i.label == 'Discover' || i.label == 'Programs');
+            if (discoverIndex != -1) {
+              setState(() => _currentIndex = discoverIndex);
+            }
+          },
+        );
       case 'Discover':
         return const ProgramListingScreen();
       case 'Applications':
