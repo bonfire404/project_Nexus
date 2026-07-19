@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:nexus/core/utils/snackbar_utils.dart';
 import 'package:hugeicons/hugeicons.dart';
-import 'package:nexus/core/enums/user_role.dart';
-import 'package:nexus/features/auth/presentation/providers/auth_controller.dart';
+
 import 'package:nexus/app/theme_controller.dart';
-import 'package:nexus/features/programs/presentation/screens/discover_screen.dart';
-import 'package:nexus/features/programs/presentation/screens/applications_screen.dart';
-import 'package:nexus/features/learning/presentation/screens/learning_screen.dart';
-import 'package:nexus/features/workspace/presentation/screens/workspace_screen.dart';
+import 'package:nexus/core/enums/user_role.dart';
+import 'package:nexus/core/utils/snackbar_utils.dart';
 import 'package:nexus/features/admin/presentation/screens/users_screen.dart';
-import 'package:nexus/features/admin/presentation/screens/programs_management_screen.dart';
+import 'package:nexus/features/auth/presentation/providers/auth_controller.dart';
+import 'package:nexus/features/learning/presentation/screens/learning_screen.dart';
 import 'package:nexus/features/profile/presentation/screens/settings_screen.dart';
+import 'package:nexus/features/programs/presentation/screens/applications_screen.dart';
+import 'package:nexus/features/programs/presentation/screens/program_listing_screen.dart';
+import 'package:nexus/features/workspace/presentation/screens/workspace_screen.dart';
 
 /// Main shell with bottom navigation — role-aware tabs.
 class HomeScreen extends StatefulWidget {
@@ -66,9 +66,19 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (label) {
       case 'Home':
       case 'Dashboard':
-        return _HomeDashboard(role: _auth.selectedRole, theme: theme);
+        return _HomeDashboard(
+          role: _auth.selectedRole, 
+          theme: theme,
+          onExplorePressed: () {
+            final items = _navItems;
+            final discoverIndex = items.indexWhere((i) => i.label == 'Discover' || i.label == 'Programs');
+            if (discoverIndex != -1) {
+              setState(() => _currentIndex = discoverIndex);
+            }
+          },
+        );
       case 'Discover':
-        return const DiscoverScreen();
+        return const ProgramListingScreen();
       case 'Applications':
         return const ApplicationsScreen();
       case 'Learning':
@@ -78,7 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'Users':
         return const UsersScreen();
       case 'Programs':
-        return const ProgramsManagementScreen();
+        return const ProgramListingScreen();
       case 'Settings':
         return SettingsScreen(
           authController: _auth,
@@ -170,7 +180,7 @@ class _FloatingNavBar extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
+                color: Colors.black.withOpacity(0.05),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
@@ -223,8 +233,13 @@ class _FloatingNavBar extends StatelessWidget {
 class _HomeDashboard extends StatelessWidget {
   final UserRole? role;
   final ThemeData theme;
+  final VoidCallback onExplorePressed;
 
-  const _HomeDashboard({required this.role, required this.theme});
+  const _HomeDashboard({
+    required this.role,
+    required this.theme,
+    required this.onExplorePressed,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -238,6 +253,16 @@ class _HomeDashboard extends StatelessWidget {
           _buildHeroCard(context),
           const SizedBox(height: 36),
           _buildStatsRow(context),
+          const SizedBox(height: 36),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.explore),
+              title: const Text('Explore Programs'),
+              subtitle: const Text('Find the best program for your career'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: onExplorePressed,
+            ),
+          ),
           const SizedBox(height: 36),
           _buildActivitySection(context),
           const SizedBox(height: 80),
@@ -577,7 +602,6 @@ class _AdminHero extends StatelessWidget {
             _buildAction(context, HugeIcons.strokeRoundedUserAdd01, 'Add User', theme, () => _handleAddUser(context, theme)),
             _buildAction(context, HugeIcons.strokeRoundedFolderAdd, 'New Program', theme, () => _handleNewProgram(context, theme)),
             _buildAction(context, HugeIcons.strokeRoundedAnalytics01, 'Reports', theme, () => _handleReports(context, theme)),
-            _buildAction(context, HugeIcons.strokeRoundedSettings02, 'Settings', theme, () => _handleSettings(context, theme)),
           ],
         ),
       ],
@@ -707,10 +731,6 @@ class _AdminHero extends StatelessWidget {
         ),
       ]
     ));
-  }
-
-  void _handleSettings(BuildContext context, ThemeData theme) {
-     showGlassSnackbar(context, 'Use the Settings tab below to configure platform preferences.');
   }
 }
 

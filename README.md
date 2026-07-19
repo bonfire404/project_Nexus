@@ -1,38 +1,95 @@
-# Project Nexus
+# Nexus - Excelerate Unified Platform 🚀
 
-Project Nexus is a modern Flutter application designed for performance and scalability. This document provides the necessary information to get started with the development and deployment of the application.
+**Nexus** is an enterprise-grade, role-based platform designed to bridge the gap between aspiring talent and industry opportunities. Built with a focus on performance, security, and aesthetic minimalism, Nexus streamlines program discovery, internship tracking, and administrative oversight.
 
-## Prerequisites
+---
 
-Before you begin, ensure you have met the following requirements:
-*   Flutter SDK installed (refer to the official [Flutter installation guide](https://docs.flutter.dev/get-started/install)).
-*   A suitable IDE (such as Android Studio, IntelliJ IDEA, or Visual Studio Code) configured with Flutter and Dart plugins.
-*   An active emulator or a connected physical device for testing.
+## 📱 App Preview (UI Prototype)
 
-## Getting Started
+**Role Selection**
+![Role Selection](assets/screenshots/Role_Selection.jpg)
 
-To run this project locally, follow these steps:
+**Login Screen**
+![Login Screen](assets/screenshots/login_screen.jpg)
 
-1.  Clone the repository to your local machine.
-2.  Navigate to the project root directory.
-3.  Execute the following command to retrieve all dependencies:
+**Personal Dashboard**
+![Dashboard](assets/screenshots/dashboard.jpg)
+
+**Program Discovery**
+![Program Listing](assets/screenshots/program_listing.jpg)
+
+**Program Details**
+![Program Details](assets/screenshots/program_details.jpg)
+
+---
+
+## ✨ Key Features
+
+### 🔐 Multi-Role Authentication
+- **Tailored Onboarding**: Choose between Applicant, Intern, or Administrator roles.
+- **Biometric Security**: Integrated Fingerprint/Face ID authentication for quick and secure access.
+- **Input Validation**: Robust form validation to ensure data integrity during sign-in.
+
+### 🔍 Dynamic Program Exploration
+- **Curated Listings**: Browse through professional programs with real-time metadata (Duration, Difficulty Level).
+- **Interactive Details**: Comprehensive program overviews with one-tap enrollment capabilities.
+
+### 🎨 Design System
+- **Typography**: A balanced mix of **Kameron** (Serif) for authoritative headings and **Lato** (Sans-serif) for high-readability body text.
+- **Dark Mode Support**: A premium, low-light interface designed for enterprise efficiency and reduced eye strain.
+- **HugeIcons Library**: Premium, high-stroke icons for a modern look and feel.
+
+---
+
+## 🛠️ Technical Stack
+
+- **Framework**: [Flutter](https://flutter.dev) (v3.x)
+- **Architecture**: Feature-Driven Layered Architecture (Clean Code Principles)
+- **Routing**: [GoRouter](https://pub.dev/packages/go_router) for declarative, deep-link ready navigation.
+- **State Management**: Controller-based pattern using `ChangeNotifier`.
+- **Security**: [Local Auth](https://pub.dev/packages/local_auth) for hardware-level biometrics.
+
+---
+
+## 🏗️ Project Architecture
+
+```text
+lib/
+├── app/          # Global config: Router, Themes, App Shell
+├── core/         # Shared: Enums, Constants, Global Styles
+├── features/     # Encapsulated Modules
+│   ├── auth/     # Role selection, Login, Controller
+│   ├── dashboard/# Home shell, Role-specific widgets
+│   └── programs/ # Listing, Details, Domain Logic
+└── shared/       # Common Widgets: Buttons, Cards, Inputs
+```
+
+---
+
+## ⚙️ Getting Started
+
+### Installation
+1.  **Clone the Repository**
+    ```bash
+    git clone https://github.com/your-username/project_Nexus.git
+    ```
+2.  **Initialize Project**
     ```bash
     flutter pub get
     ```
-4.  Run the application using the following command:
+3.  **Launch Application**
     ```bash
     flutter run
     ```
 
-## Architecture
+---
 
-This project is built using a structured architecture to ensure maintainability and separation of concerns. The primary source code is located within the `lib` directory.
+## ✅ Week 2 Milestones
 
-## Contributing
+- [x] **Role Selection Logic**: Implemented animated card-based selection.
+- [x] **Secure Sign-In**: Built interactive login with biometric fallback.
+- [x] **Unified Navigation**: Set up complex routing with `GoRouter` redirects.
+- [x] **Discovery Modules**: Developed high-fidelity Program Listing and Detail views.
 
-Contributions are welcome. Please ensure that any changes are thoroughly tested and adhere to the project's coding standards before submitting a pull request.
-
-## Additional Resources
-
-*   [Flutter Documentation](https://docs.flutter.dev/)
-*   [Dart Language Tour](https://dart.dev/guides/language/language-tour)
+---
+*Developed for the Excelerate Nexus Platform.
