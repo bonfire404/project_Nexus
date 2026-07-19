@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:nexus/core/utils/snackbar_utils.dart';
 import 'package:hugeicons/hugeicons.dart';
-import 'package:nexus/core/enums/user_role.dart';
-import 'package:nexus/features/auth/presentation/providers/auth_controller.dart';
+
 import 'package:nexus/app/theme_controller.dart';
-import 'package:nexus/features/programs/presentation/screens/program_listing_screen.dart';
-import 'package:nexus/features/programs/presentation/screens/applications_screen.dart';
-import 'package:nexus/features/learning/presentation/screens/learning_screen.dart';
-import 'package:nexus/features/workspace/presentation/screens/workspace_screen.dart';
+import 'package:nexus/core/enums/user_role.dart';
+import 'package:nexus/core/utils/snackbar_utils.dart';
 import 'package:nexus/features/admin/presentation/screens/users_screen.dart';
+import 'package:nexus/features/auth/presentation/providers/auth_controller.dart';
+import 'package:nexus/features/learning/presentation/screens/learning_screen.dart';
 import 'package:nexus/features/profile/presentation/screens/settings_screen.dart';
+import 'package:nexus/features/programs/presentation/screens/applications_screen.dart';
+import 'package:nexus/features/programs/presentation/screens/program_listing_screen.dart';
+import 'package:nexus/features/workspace/presentation/screens/workspace_screen.dart';
 
 /// Main shell with bottom navigation — role-aware tabs.
 class HomeScreen extends StatefulWidget {
