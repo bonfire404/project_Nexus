@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:nexus/features/deliverables/presentation/screens/tasks_screen.dart';
 import 'package:nexus/features/meetings/presentation/screens/schedule_screen.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
-class WorkspaceScreen extends StatelessWidget {
+class WorkspaceScreen extends StatefulWidget {
   const WorkspaceScreen({super.key});
+
+  @override
+  State<WorkspaceScreen> createState() => _WorkspaceScreenState();
+}
+
+class _WorkspaceScreenState extends State<WorkspaceScreen> {
+  bool _isLoading = false; // Set to true when fetching real data from backend
 
   @override
   Widget build(BuildContext context) {
@@ -34,12 +42,15 @@ class WorkspaceScreen extends StatelessWidget {
               ],
             ),
           ),
-          const Expanded(
-            child: TabBarView(
-              children: [
-                TasksScreen(),
-                ScheduleScreen(),
-              ],
+          Expanded(
+            child: Skeletonizer(
+              enabled: _isLoading,
+              child: const TabBarView(
+                children: [
+                  TasksScreen(),
+                  ScheduleScreen(),
+                ],
+              ),
             ),
           ),
         ],

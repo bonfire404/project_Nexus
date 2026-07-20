@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nexus/core/utils/snackbar_utils.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 /// Applicant's view of submitted applications — tappable with detail sheets.
 class ApplicationsScreen extends StatefulWidget {
@@ -11,6 +12,7 @@ class ApplicationsScreen extends StatefulWidget {
 
 class _ApplicationsScreenState extends State<ApplicationsScreen> {
   String _filterStatus = 'All';
+  bool _isLoading = false; // Set to true when fetching real data from backend
 
   final List<Map<String, String>> _applications = [
     {
@@ -158,141 +160,144 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
     final theme = Theme.of(context);
     final results = _filtered;
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'My Applications',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontFamily: 'Kameron',
-              fontWeight: FontWeight.w600,
+    return Skeletonizer(
+      enabled: _isLoading,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'My Applications',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontFamily: 'Kameron',
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${_applications.length} applications submitted',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+            const SizedBox(height: 8),
+            Text(
+              '${_applications.length} applications submitted',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          // Filter chips
-          Wrap(
-            spacing: 8,
-            children: ['All', 'Pending', 'Accepted', 'Rejected'].map((label) {
-              final isSelected = _filterStatus == label;
-              return FilterChip(
-                label: Text(label),
-                selected: isSelected,
-                onSelected: (_) => setState(() => _filterStatus = label),
-                selectedColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-                checkmarkColor: theme.colorScheme.primary,
-                side: BorderSide(
-                  color: isSelected
-                      ? theme.colorScheme.primary.withValues(alpha: 0.3)
-                      : theme.colorScheme.outline.withValues(alpha: 0.3),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: results.isEmpty
-                ? Center(
-                    child: Text(
-                      'No applications with status "$_filterStatus".',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+            const SizedBox(height: 12),
+            // Filter chips
+            Wrap(
+              spacing: 8,
+              children: ['All', 'Pending', 'Accepted', 'Rejected'].map((label) {
+                final isSelected = _filterStatus == label;
+                return FilterChip(
+                  label: Text(label),
+                  selected: isSelected,
+                  onSelected: (_) => setState(() => _filterStatus = label),
+                  selectedColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  checkmarkColor: theme.colorScheme.primary,
+                  side: BorderSide(
+                    color: isSelected
+                        ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                        : theme.colorScheme.outline.withValues(alpha: 0.3),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: results.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No applications with status "$_filterStatus".',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                  )
-                : ListView.separated(
-                    itemCount: results.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final app = results[index];
-                      final color = _statusColor(app['status']!);
-
-                      return GestureDetector(
-                        onTap: () => _showApplicationDetail(app),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                    )
+                  : ListView.separated(
+                      itemCount: results.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final app = results[index];
+                        final color = _statusColor(app['status']!);
+  
+                        return GestureDetector(
+                          onTap: () => _showApplicationDetail(app),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                              ),
                             ),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: color.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Icon(
-                                  _statusIcon(app['status']!),
-                                  color: color,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      app['program']!,
-                                      style: theme.textTheme.titleSmall?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Applied ${app['date']}',
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: theme.colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: color.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  app['status']!,
-                                  style: theme.textTheme.labelSmall?.copyWith(
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: color.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    _statusIcon(app['status']!),
                                     color: color,
-                                    fontWeight: FontWeight.w600,
+                                    size: 20,
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.chevron_right,
-                                size: 18,
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ],
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        app['program']!,
+                                        style: theme.textTheme.titleSmall?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Applied ${app['date']}',
+                                        style: theme.textTheme.bodySmall?.copyWith(
+                                          color: theme.colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: color.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    app['status']!,
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: color,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.chevron_right,
+                                  size: 18,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -6,6 +6,9 @@ import 'package:nexus/app/theme_controller.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nexus/core/utils/legal_docs_sheets.dart';
+import 'package:nexus/core/utils/app_version.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 /// Settings screen — shared across all roles, fully interactive.
 class SettingsScreen extends StatefulWidget {
@@ -58,7 +61,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final role = widget.authController.selectedRole;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.only(
+        top: 24,
+        left: 24,
+        right: 24,
+        bottom: 120, // Extra padding to clear the bottom navigation bar
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -170,6 +178,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               label: 'About Nexus',
               onTap: () => _showAboutSheet(context, theme),
             ),
+            _SettingsItem(
+              icon: HugeIcons.strokeRoundedClock01,
+              label: 'Changelog',
+              onTap: () => _showChangelogSheet(context, theme),
+            ),
           ]),
           const SizedBox(height: 24),
 
@@ -201,7 +214,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 12),
           Center(
             child: Text(
-              'Nexus v1.0.0',
+              'Nexus v${AppVersion.currentVersion}',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -339,7 +352,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Version 1.0.0',
+              'Version ${AppVersion.currentVersion}',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -436,6 +449,70 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 24),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showChangelogSheet(BuildContext context, ThemeData theme) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'What\'s New',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontFamily: 'Kameron',
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: FutureBuilder<String>(
+                    future: rootBundle.loadString('CHANGELOG.md'),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snapshot.hasError) {
+                        return const Center(child: Text('Failed to load changelog.'));
+                      }
+                      final mdData = snapshot.data ?? 'No changelog available.';
+                      return Markdown(
+                        data: mdData,
+                        controller: scrollController,
+                        padding: EdgeInsets.zero,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

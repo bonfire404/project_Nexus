@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nexus/core/utils/snackbar_utils.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 /// Admin's user management screen — searchable, filterable, with user detail.
 class UsersScreen extends StatefulWidget {
@@ -14,6 +15,7 @@ class _UsersScreenState extends State<UsersScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
   String _roleFilter = 'All';
+  bool _isLoading = false; // Set to true when fetching real data from backend
 
   final List<Map<String, String>> _users = [
     {'name': 'Maria Santos', 'role': 'Intern', 'status': 'Active', 'email': 'maria@example.com'},
@@ -175,181 +177,184 @@ class _UsersScreenState extends State<UsersScreen> {
     final theme = Theme.of(context);
     final results = _filtered;
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Users',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontFamily: 'Kameron',
-              fontWeight: FontWeight.w600,
+    return Skeletonizer(
+      enabled: _isLoading,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Users',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontFamily: 'Kameron',
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _searchController,
-            onChanged: (value) => setState(() => _searchQuery = value),
-            decoration: InputDecoration(
-              hintText: 'Search users...',
-              prefixIcon: HugeIcon(
-                icon: HugeIcons.strokeRoundedSearch01,
-                size: 20,
+            const SizedBox(height: 16),
+            TextField(
+              controller: _searchController,
+              onChanged: (value) => setState(() => _searchQuery = value),
+              decoration: InputDecoration(
+                hintText: 'Search users...',
+                prefixIcon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedSearch01,
+                  size: 20,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: theme.colorScheme.outline),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.5),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Filter chips
+            Wrap(
+              spacing: 8,
+              children: ['All', 'Interns', 'Applicants'].map((label) {
+                final isSelected = _roleFilter == label;
+                return FilterChip(
+                  label: Text(label),
+                  selected: isSelected,
+                  onSelected: (_) => setState(() => _roleFilter = label),
+                  selectedColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  checkmarkColor: theme.colorScheme.primary,
+                  side: BorderSide(
+                    color: isSelected
+                        ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                        : theme.colorScheme.outline.withValues(alpha: 0.3),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${results.length} user${results.length == 1 ? '' : 's'}',
+              style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.close, size: 18),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _searchQuery = '');
-                      },
-                    )
-                  : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: theme.colorScheme.outline),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                  color: theme.colorScheme.outline.withValues(alpha: 0.5),
-                ),
-              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          // Filter chips
-          Wrap(
-            spacing: 8,
-            children: ['All', 'Interns', 'Applicants'].map((label) {
-              final isSelected = _roleFilter == label;
-              return FilterChip(
-                label: Text(label),
-                selected: isSelected,
-                onSelected: (_) => setState(() => _roleFilter = label),
-                selectedColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-                checkmarkColor: theme.colorScheme.primary,
-                side: BorderSide(
-                  color: isSelected
-                      ? theme.colorScheme.primary.withValues(alpha: 0.3)
-                      : theme.colorScheme.outline.withValues(alpha: 0.3),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${results.length} user${results.length == 1 ? '' : 's'}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: results.isEmpty
-                ? Center(
-                    child: Text(
-                      'No users found.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+            const SizedBox(height: 8),
+            Expanded(
+              child: results.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No users found.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                  )
-                : ListView.separated(
-                    itemCount: results.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final user = results[index];
-                      final statusColor = user['status'] == 'Active'
-                          ? Colors.green
-                          : user['status'] == 'Inactive'
-                              ? Colors.red
-                              : Colors.orange;
-
-                      return GestureDetector(
-                        onTap: () => _showUserDetail(user),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surface,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: theme.colorScheme.outline
-                                  .withValues(alpha: 0.2),
+                    )
+                  : ListView.separated(
+                      itemCount: results.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final user = results[index];
+                        final statusColor = user['status'] == 'Active'
+                            ? Colors.green
+                            : user['status'] == 'Inactive'
+                                ? Colors.red
+                                : Colors.orange;
+  
+                        return GestureDetector(
+                          onTap: () => _showUserDetail(user),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
                             ),
-                          ),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 18,
-                                backgroundColor: theme.colorScheme.primary
-                                    .withValues(alpha: 0.1),
-                                child: Text(
-                                  user['name']![0],
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.w600,
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surface,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: theme.colorScheme.outline
+                                    .withValues(alpha: 0.2),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: theme.colorScheme.primary
+                                      .withValues(alpha: 0.1),
+                                  child: Text(
+                                    user['name']![0],
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      color: theme.colorScheme.primary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      user['name']!,
-                                      style:
-                                          theme.textTheme.titleSmall?.copyWith(
-                                        fontWeight: FontWeight.w600,
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        user['name']!,
+                                        style:
+                                            theme.textTheme.titleSmall?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
-                                    ),
-                                    Text(
-                                      user['role']!,
-                                      style:
-                                          theme.textTheme.bodySmall?.copyWith(
-                                        color:
-                                            theme.colorScheme.onSurfaceVariant,
+                                      Text(
+                                        user['role']!,
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
+                                          color:
+                                              theme.colorScheme.onSurfaceVariant,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: statusColor,
-                                  shape: BoxShape.circle,
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: statusColor,
+                                    shape: BoxShape.circle,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                user['status']!,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: statusColor,
-                                  fontWeight: FontWeight.w500,
+                                const SizedBox(width: 6),
+                                Text(
+                                  user['status']!,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: statusColor,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.chevron_right,
-                                size: 18,
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ],
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.chevron_right,
+                                  size: 18,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
