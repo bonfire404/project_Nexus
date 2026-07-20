@@ -120,13 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: ElevatedButton(
                             onPressed: _auth.isLoading ? null : _handleLogin,
                             child: _auth.isLoading
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
+                                ? const _SpinningLogo()
                                 : const Text('Sign In'),
                           ),
                         ),
@@ -167,6 +161,45 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SpinningLogo extends StatefulWidget {
+  const _SpinningLogo();
+
+  @override
+  State<_SpinningLogo> createState() => _SpinningLogoState();
+}
+
+class _SpinningLogoState extends State<_SpinningLogo>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RotationTransition(
+      turns: _controller,
+      child: Image.asset(
+        'assets/icons/app_logo.png',
+        width: 24,
+        height: 24,
       ),
     );
   }

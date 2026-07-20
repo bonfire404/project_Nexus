@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexus/features/programs/domain/entities/program.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
-class ProgramListingScreen extends StatelessWidget {
+class ProgramListingScreen extends StatefulWidget {
   const ProgramListingScreen({super.key});
 
   static const List<Program> dummyPrograms = [
@@ -33,6 +34,13 @@ class ProgramListingScreen extends StatelessWidget {
   ];
 
   @override
+  State<ProgramListingScreen> createState() => _ProgramListingScreenState();
+}
+
+class _ProgramListingScreenState extends State<ProgramListingScreen> {
+  bool _isLoading = false; // Set to true when fetching real data from backend
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
@@ -40,63 +48,66 @@ class ProgramListingScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Available Programs'),
       ),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: dummyPrograms.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 16),
-        itemBuilder: (context, index) {
-          final program = dummyPrograms[index];
-          return Card(
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: () {
-                context.push('/programs/${program.id}');
-              },
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    height: 140,
-                    width: double.infinity,
-                    color: theme.colorScheme.primaryContainer,
-                    child: const Icon(Icons.code, size: 48),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          program.title,
-                          style: theme.textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          program.description,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            const Icon(Icons.timer_outlined, size: 16),
-                            const SizedBox(width: 4),
-                            Text(program.duration),
-                            const SizedBox(width: 16),
-                            const Icon(Icons.bar_chart, size: 16),
-                            const SizedBox(width: 4),
-                            Text(program.level),
-                          ],
-                        ),
-                      ],
+      body: Skeletonizer(
+        enabled: _isLoading,
+        child: ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: ProgramListingScreen.dummyPrograms.length,
+          separatorBuilder: (context, index) => const SizedBox(height: 16),
+          itemBuilder: (context, index) {
+            final program = ProgramListingScreen.dummyPrograms[index];
+            return Card(
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () {
+                  context.push('/programs/${program.id}');
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      height: 140,
+                      width: double.infinity,
+                      color: theme.colorScheme.primaryContainer,
+                      child: const Icon(Icons.code, size: 48),
                     ),
-                  ),
-                ],
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            program.title,
+                            style: theme.textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            program.description,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              const Icon(Icons.timer_outlined, size: 16),
+                              const SizedBox(width: 4),
+                              Text(program.duration),
+                              const SizedBox(width: 16),
+                              const Icon(Icons.bar_chart, size: 16),
+                              const SizedBox(width: 4),
+                              Text(program.level),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

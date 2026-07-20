@@ -1,0 +1,54 @@
+name: Release-Please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - id: release
+        uses: google-github-actions/release-please-action@v4
+        with:
+          release-type: dart
+          package-name: nexus
+          bump-minor-pre-major: true
+          bump-patch-for-minor-pre-major: true
+
+      - name: Checkout code
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        if: ${{ steps.release.outputs.release_created }}
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        if: ${{ steps.release.outputs.release_created }}
+        run: flutter pub get
+
+      - name: Build Production APK
+        if: ${{ steps.release.outputs.release_created }}
+        run: flutter build apk --release
+
+      - name: Upload APK to Release
+        if: ${{ steps.release.outputs.release_created }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag_name }}
+          files: build/app/outputs/flutter-apk/app-release.apk
