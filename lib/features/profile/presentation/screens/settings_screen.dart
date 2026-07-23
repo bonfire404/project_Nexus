@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+ import 'package:flutter/material.dart';
 import 'package:nexus/core/utils/snackbar_utils.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:nexus/features/auth/presentation/providers/auth_controller.dart';
@@ -9,6 +9,7 @@ import 'package:nexus/core/utils/legal_docs_sheets.dart';
 import 'package:nexus/core/utils/app_version.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:go_router/go_router.dart';
 
 /// Settings screen — shared across all roles, fully interactive.
 class SettingsScreen extends StatefulWidget {
@@ -161,7 +162,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _SettingsItem(
               icon: HugeIcons.strokeRoundedHelpCircle,
               label: 'Help & Support',
-              onTap: () => _showSupportSheet(context, theme),
+              onTap: () => context.push('/feedback'),
             ),
             _SettingsItem(
               icon: HugeIcons.strokeRoundedFile01,
@@ -377,76 +378,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 12),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showSupportSheet(BuildContext context, ThemeData theme) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          left: 24,
-          right: 24,
-          top: 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.outline.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Help & Support',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontFamily: 'Kameron',
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              maxLines: 4,
-              decoration: InputDecoration(
-                hintText: 'How can we help you?',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: FilledButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _showSnack(context, 'Message sent', type: SnackbarType.success);
-                },
-                style: FilledButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text('Send Message'),
-              ),
-            ),
-            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -873,7 +804,7 @@ class _AppearanceOption extends StatelessWidget {
       onTap: onTap,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       selected: isSelected,
-      selectedTileColor: theme.colorScheme.primary.withOpacity(0.1),
+      selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.1),
     );
   }
 }

@@ -1,5 +1,4 @@
 import 'package:nexus/core/services/sync_controller.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 /// Handles the full application startup pipeline (network, auth, offline data)
 class AppInitializer {
@@ -7,8 +6,8 @@ class AppInitializer {
     // 1. Initialize global offline-to-online sync controller
     SyncController().initialize();
 
-    // 2. Hydrate local preferences / Hive databases
-    await SharedPreferences.getInstance();
+    // 2. (Future) Hydrate Hive databases or other offline stores h ere
+    // Local preferences are handled lazily by respective controllers
 
     // 3. (Future) Initialize Firebase or custom backend SDK here
     

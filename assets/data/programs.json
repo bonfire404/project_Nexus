@@ -1,0 +1,34 @@
+[
+  {
+    "id": "1",
+    "title": "Mobile App Development",
+    "description": "Learn to build cross-platform apps with Flutter. This comprehensive program covers Dart, Flutter widgets, state management, and API integration.",
+    "imageUrl": "https://placeholder.com/150",
+    "duration": "12 Weeks",
+    "level": "Intermediate"
+  },
+  {
+    "id": "2",
+    "title": "Data Science Bootcamp",
+    "description": "Master data analysis and machine learning. Explore Python, Pandas, Scikit-Learn, and deep learning architectures for real-world predictions.",
+    "imageUrl": "https://placeholder.com/150",
+    "duration": "16 Weeks",
+    "level": "Advanced"
+  },
+  {
+    "id": "3",
+    "title": "UI/UX Design Essentials",
+    "description": "Design beautiful and user-friendly interfaces. Learn user research, wireframing, prototyping, and high-fidelity design using industry-standard tools.",
+    "imageUrl": "https://placeholder.com/150",
+    "duration": "8 Weeks",
+    "level": "Beginner"
+  },
+  {
+    "id": "4",
+    "title": "Backend Engineering",
+    "description": "Build scalable server-side applications. Focus on Node.js, databases (SQL/NoSQL), security, and system architecture for high-performance systems.",
+    "imageUrl": "https://placeholder.com/150",
+    "duration": "14 Weeks",
+    "level": "Advanced"
+  }
+]

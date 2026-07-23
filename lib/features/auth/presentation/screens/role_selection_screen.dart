@@ -207,8 +207,8 @@ class _RoleCardState extends State<_RoleCard> with SingleTickerProviderStateMixi
         : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0));
 
     final shadowColor = _isHovered
-        ? theme.colorScheme.primary.withOpacity(0.1)
-        : Colors.black.withOpacity(0.02);
+        ? theme.colorScheme.primary.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.02);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -250,7 +250,7 @@ class _RoleCardState extends State<_RoleCard> with SingleTickerProviderStateMixi
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.1),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: _iconForRole(widget.role, theme.colorScheme.primary),
