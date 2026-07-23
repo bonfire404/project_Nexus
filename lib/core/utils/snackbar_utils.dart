@@ -35,7 +35,6 @@ void showGlassSnackbar(
           iconColor = Colors.orange.shade600;
           break;
         case SnackbarType.info:
-        default:
           iconData = Icons.info_outline;
           iconColor = theme.colorScheme.primary;
           break;

@@ -15,7 +15,22 @@ class _UsersScreenState extends State<UsersScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
   String _roleFilter = 'All';
-  bool _isLoading = false; // Set to true when fetching real data from backend
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _simulateLoading();
+  }
+
+  Future<void> _simulateLoading() async {
+    await Future.delayed(const Duration(milliseconds: 1000));
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   final List<Map<String, String>> _users = [
     {'name': 'Maria Santos', 'role': 'Intern', 'status': 'Active', 'email': 'maria@example.com'},

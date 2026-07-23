@@ -74,13 +74,7 @@ class _TasksScreenState extends State<TasksScreen> {
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('File attachment coming soon'),
-                      duration: Duration(seconds: 1),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                  showGlassSnackbar(context, 'File attachment coming soon');
                 },
                 icon: const Icon(Icons.attach_file, size: 18),
                 label: const Text('Attach File'),

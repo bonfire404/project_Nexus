@@ -133,7 +133,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             icon: const HugeIcon(
                               icon: HugeIcons.strokeRoundedFingerPrint,
                               size: 20,
-                              color: Colors.black, // Will be overridden by theme foregroundColor
+                              color: Colors.transparent, // Color is handled by button's foregroundColor
                             ),
                             label: const Text('Sign in with Biometrics'),
                           ),

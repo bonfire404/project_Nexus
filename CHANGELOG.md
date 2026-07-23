@@ -21,3 +21,16 @@
 
 ### Changed
 - Minor UI improvements and bug fixes.
+
+## [1.2.0] - 2026-07-23
+
+### Added
+- **Mock API Integration**: Program data is now fetched from a local JSON source (`assets/data/programs.json`).
+- **Validated Feedback Form**: New Feedback screen accessible from Settings with robust input validation.
+- **Repository Pattern**: Implemented `ProgramRepositoryImpl` for better separation of concerns.
+- **Skeleton Loading**: Integrated `Skeletonizer` for smoother transitions on data-driven screens.
+- **Improved Details**: Dynamic loading of program details based on ID.
+
+### Fixed
+- Deprecated `withOpacity` calls migrated to `withValues`.
+- Improved router redirect logic for role selection.

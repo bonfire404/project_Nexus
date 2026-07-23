@@ -193,7 +193,7 @@ class _FloatingNavBar extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
@@ -259,7 +259,22 @@ class _HomeDashboard extends StatefulWidget {
 }
 
 class _HomeDashboardState extends State<_HomeDashboard> {
-  bool _isLoading = false; // Set to true when fetching real data from backend
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _simulateLoading();
+  }
+
+  Future<void> _simulateLoading() async {
+    await Future.delayed(const Duration(milliseconds: 1500));
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   ThemeData get theme => widget.theme;
   UserRole? get role => widget.role;
@@ -320,7 +335,7 @@ class _HomeDashboardState extends State<_HomeDashboard> {
             ),
             const SizedBox(height: 4),
             Text(
-              'John Doe', // TODO: user real name
+              'User',
               style: widget.theme.textTheme.headlineSmall?.copyWith(
                 fontFamily: 'Kameron',
                 fontWeight: FontWeight.w700,
@@ -1277,10 +1292,9 @@ class _AnimatedIndexedStack extends StatefulWidget {
   final List<Widget> children;
 
   const _AnimatedIndexedStack({
-    Key? key,
     required this.index,
     required this.children,
-  }) : super(key: key);
+  });
 
   @override
   State<_AnimatedIndexedStack> createState() => _AnimatedIndexedStackState();
