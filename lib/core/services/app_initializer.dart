@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:nexus/core/services/firestore_seeder.dart';
 import 'package:nexus/core/services/sync_controller.dart';
 import 'package:nexus/firebase_options.dart';
@@ -6,7 +7,12 @@ import 'package:nexus/firebase_options.dart';
 /// Handles the full application startup pipeline (network, auth, offline data)
 class AppInitializer {
   static Future<void> initialize() async {
-    // 1. Initialize global offline-to-online sync controller
+    // 1. Load environment variables from .env file
+    try {
+      await dotenv.load(fileName: '.env');
+    } catch (_) {}
+
+    // 2. Initialize global offline-to-online sync controller
     SyncController().initialize();
 
     // 2. Ensure Firebase core SDK is initialized
