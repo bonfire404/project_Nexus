@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for role validation
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // 1. Users collection
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // 2. Programs collection (Public read for discovery, Write allowed)
+    match /programs/{programId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // 3. Applications collection
+    match /applications/{applicationId} {
+      allow read, write: if true;
+    }
+
+    // 4. Learning Resources collection
+    match /learning_resources/{resourceId} {
+      allow read, write: if true;
+    }
+
+    // 5. Tasks / Deliverables collection
+    match /tasks/{taskId} {
+      allow read, write: if true;
+    }
+
+    // 6. Meetings / Schedule collection
+    match /meetings/{meetingId} {
+      allow read, write: if true;
+    }
+
+    // 7. Feedback collection
+    match /feedback/{feedbackId} {
+      allow read, write: if true;
+    }
+  }
+}

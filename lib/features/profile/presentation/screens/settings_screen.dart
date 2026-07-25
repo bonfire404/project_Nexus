@@ -9,6 +9,9 @@ import 'package:nexus/core/utils/legal_docs_sheets.dart';
 import 'package:nexus/core/utils/app_version.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:nexus/features/admin/data/repositories/user_firestore_repository.dart';
+import 'package:nexus/core/utils/avatar_utils.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import 'package:go_router/go_router.dart';
 
 /// Settings screen — shared across all roles, fully interactive.
@@ -28,6 +31,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   String _name = 'Nexus User';
+  String _avatarKey = 'preset_1';
 
   @override
   void initState() {
@@ -36,10 +40,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadProfile() async {
-    final prefs = await SharedPreferences.getInstance();
+    final user = widget.authController.currentUser;
+    String name = widget.authController.userDisplayName;
+    String avatar = 'preset_1';
+
+    if (user != null) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        name = prefs.getString('user_name_${user.uid}') ?? name;
+        avatar = prefs.getString('user_avatar_${user.uid}') ?? 'preset_1';
+
+        final repo = UserFirestoreRepository();
+        final doc = await repo.getUser(user.uid);
+        if (doc != null) {
+          if ((doc['name'] as String? ?? '').isNotEmpty) name = doc['name'] as String;
+          if ((doc['avatar'] as String? ?? '').isNotEmpty) avatar = doc['avatar'] as String;
+        }
+      } catch (_) {}
+    }
+
     if (mounted) {
       setState(() {
-        _name = prefs.getString('user_name') ?? 'Nexus User';
+        _name = name;
+        _avatarKey = avatar;
       });
     }
   }
@@ -94,16 +117,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor:
-                        theme.colorScheme.primary.withValues(alpha: 0.1),
-                    child: HugeIcon(
-                      icon: HugeIcons.strokeRoundedUser,
-                      size: 22,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
+                  AvatarUtils.buildAvatarWidget(_avatarKey, radius: 24),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
@@ -162,7 +176,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _SettingsItem(
               icon: HugeIcons.strokeRoundedHelpCircle,
               label: 'Help & Support',
-              onTap: () => context.push('/feedback'),
+              onTap: () => context.go('/feedback'),
             ),
             _SettingsItem(
               icon: HugeIcons.strokeRoundedFile01,
@@ -617,6 +631,7 @@ class _ProfileSheetContentState extends State<_ProfileSheetContent> {
   bool _isLoading = true;
   String _name = 'Nexus User';
   String _email = 'user@nexus.com';
+  String _selectedAvatar = 'preset_1';
 
   late TextEditingController _nameController;
   late TextEditingController _emailController;
@@ -628,26 +643,72 @@ class _ProfileSheetContentState extends State<_ProfileSheetContent> {
   }
 
   Future<void> _loadProfile() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _name = prefs.getString('user_name') ?? 'Nexus User';
-      _email = prefs.getString('user_email') ?? 'user@nexus.com';
-      _nameController = TextEditingController(text: _name);
-      _emailController = TextEditingController(text: _email);
-      _isLoading = false;
-    });
+    final user = widget.authController.currentUser;
+    String name = widget.authController.userDisplayName;
+    String email = widget.authController.userEmail;
+    String avatar = 'preset_1';
+
+    if (user != null) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        name = prefs.getString('user_name_${user.uid}') ?? name;
+        email = prefs.getString('user_email_${user.uid}') ?? email;
+        avatar = prefs.getString('user_avatar_${user.uid}') ?? 'preset_1';
+
+        final repo = UserFirestoreRepository();
+        final doc = await repo.getUser(user.uid);
+        if (doc != null) {
+          if ((doc['name'] as String? ?? '').isNotEmpty) name = doc['name'] as String;
+          if ((doc['email'] as String? ?? '').isNotEmpty) email = doc['email'] as String;
+          if ((doc['avatar'] as String? ?? '').isNotEmpty) avatar = doc['avatar'] as String;
+        }
+      } catch (_) {}
+    }
+
+    if (mounted) {
+      setState(() {
+        _name = name;
+        _email = email;
+        _selectedAvatar = avatar;
+        _nameController = TextEditingController(text: _name);
+        _emailController = TextEditingController(text: _email);
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _saveProfile() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_name', _nameController.text);
-    await prefs.setString('user_email', _emailController.text);
-    setState(() {
-      _name = _nameController.text;
-      _email = _emailController.text;
-      _isEditing = false;
-    });
-    _showSnack('Profile updated', type: SnackbarType.success);
+    final newName = _nameController.text.trim();
+    final newEmail = _emailController.text.trim();
+    final user = widget.authController.currentUser;
+
+    if (newName.isNotEmpty) {
+      widget.authController.updateDisplayName(newName);
+    }
+
+    if (user != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_name_${user.uid}', newName);
+      await prefs.setString('user_email_${user.uid}', newEmail);
+      await prefs.setString('user_avatar_${user.uid}', _selectedAvatar);
+      try {
+        final repo = UserFirestoreRepository();
+        await repo.updateUser(user.uid, {
+          'name': newName,
+          'email': newEmail,
+          'avatar': _selectedAvatar,
+        });
+      } catch (_) {}
+    }
+
+    if (mounted) {
+      setState(() {
+        _name = newName;
+        _email = newEmail;
+        _isEditing = false;
+      });
+      _showSnack('Profile updated successfully!', type: SnackbarType.success);
+    }
   }
 
   void _showSnack(String msg, {SnackbarType type = SnackbarType.info}) {
@@ -663,80 +724,101 @@ class _ProfileSheetContentState extends State<_ProfileSheetContent> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Padding(
-        padding: EdgeInsets.all(48.0),
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 24,
-        right: 24,
-        top: 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: widget.theme.colorScheme.outline.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            _isEditing ? 'Edit Profile' : 'Profile',
-            style: widget.theme.textTheme.titleLarge?.copyWith(
-              fontFamily: 'Kameron',
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (!_isEditing) ...[
-            _profileRow(widget.theme, 'Name', _name),
-            _profileRow(widget.theme, 'Email', _email),
-            _profileRow(
-              widget.theme,
-              'Role',
-              widget.authController.selectedRole?.label ?? 'User',
-            ),
-            _profileRow(widget.theme, 'Joined', 'Jul 2026'),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: OutlinedButton(
-                onPressed: () => setState(() => _isEditing = true),
-                child: const Text('Edit Profile'),
-              ),
-            ),
-          ] else ...[
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Name'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(labelText: 'Email'),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => setState(() => _isEditing = false),
-                    child: const Text('Cancel'),
-                  ),
+    return Skeletonizer(
+      enabled: _isLoading,
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          left: 24,
+          right: 24,
+          top: 24,
+        ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: widget.theme.colorScheme.outline.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
                 ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              _isEditing ? 'Edit Profile' : 'Profile',
+              style: widget.theme.textTheme.titleLarge?.copyWith(
+                fontFamily: 'Kameron',
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: Column(
+                children: [
+                  AvatarUtils.buildAvatarWidget(
+                    _selectedAvatar,
+                    radius: 36,
+                    fallbackLetter: _name,
+                  ),
+                  if (_isEditing) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.add_a_photo_outlined, size: 16),
+                      label: const Text('Upload Custom Photo'),
+                      onPressed: () async {
+                        final photoBase64 = await AvatarUtils.pickCustomPhoto();
+                        if (photoBase64 != null) {
+                          setState(() => _selectedAvatar = photoBase64);
+                        }
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (!_isEditing) ...[
+              _profileRow(widget.theme, 'Name', _name),
+              _profileRow(widget.theme, 'Email', _email),
+              _profileRow(
+                widget.theme,
+                'Role',
+                widget.authController.selectedRole?.label ?? 'User',
+              ),
+              _profileRow(widget.theme, 'Joined', 'Jul 2026'),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton(
+                  onPressed: () => setState(() => _isEditing = true),
+                  child: const Text('Edit Profile'),
+                ),
+              ),
+            ] else ...[
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(labelText: 'Name'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _emailController,
+                decoration: const InputDecoration(labelText: 'Email'),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => setState(() => _isEditing = false),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton(
@@ -750,6 +832,8 @@ class _ProfileSheetContentState extends State<_ProfileSheetContent> {
           const SizedBox(height: 12),
         ],
       ),
+    ),
+    ),
     );
   }
 

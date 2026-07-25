@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nexus/core/utils/snackbar_utils.dart';
+import 'package:nexus/features/learning/data/repositories/learning_firestore_repository.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
@@ -12,25 +13,12 @@ class LearningScreen extends StatefulWidget {
 }
 
 class _LearningScreenState extends State<LearningScreen> {
+  final LearningFirestoreRepository _repository = LearningFirestoreRepository();
   String? _selectedCategory;
   bool _isLoading = true;
+  List<Map<String, String>> _resources = [];
 
-  @override
-  void initState() {
-    super.initState();
-    _simulateLoading();
-  }
-
-  Future<void> _simulateLoading() async {
-    await Future.delayed(const Duration(milliseconds: 1000));
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  final List<Map<String, dynamic>> _categories = [
+  static final List<Map<String, dynamic>> _categories = [
     {
       'title': 'Getting Started',
       'icon': HugeIcons.strokeRoundedBook01,
@@ -53,21 +41,38 @@ class _LearningScreenState extends State<LearningScreen> {
     },
   ];
 
-  final List<Map<String, String>> _allResources = [
-    {'title': 'Internship Handbook 2026', 'type': 'PDF', 'category': 'Getting Started'},
-    {'title': 'Onboarding Checklist', 'type': 'PDF', 'category': 'Getting Started'},
-    {'title': 'Team Guidelines', 'type': 'PDF', 'category': 'Getting Started'},
-    {'title': 'Intro to Team Collaboration', 'type': 'Video', 'category': 'Video Tutorials'},
-    {'title': 'Git Workflow Basics', 'type': 'Video', 'category': 'Video Tutorials'},
-    {'title': 'Weekly Report Template', 'type': 'DOCX', 'category': 'Templates & Documents'},
-    {'title': 'Presentation Template', 'type': 'PPTX', 'category': 'Templates & Documents'},
-    {'title': 'How do I submit deliverables?', 'type': 'FAQ', 'category': 'FAQs'},
-    {'title': 'What is the attendance policy?', 'type': 'FAQ', 'category': 'FAQs'},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadResources();
+  }
+
+  Future<void> _loadResources() async {
+    try {
+      final firestoreResources = await _repository.getResources();
+      if (mounted) {
+        setState(() {
+          _resources = firestoreResources.map((r) => {
+            'title': r['title'] as String? ?? 'Resource',
+            'type': r['type'] as String? ?? 'PDF',
+            'category': r['category'] as String? ?? 'Getting Started',
+          }).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _resources = [];
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   List<Map<String, String>> get _filteredResources {
-    if (_selectedCategory == null) return _allResources;
-    return _allResources.where((r) => r['category'] == _selectedCategory).toList();
+    if (_selectedCategory == null) return _resources;
+    return _resources.where((r) => r['category'] == _selectedCategory).toList();
   }
 
   void _openResource(Map<String, String> resource) {

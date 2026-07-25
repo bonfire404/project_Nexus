@@ -218,12 +218,7 @@ class _RoleCardState extends State<_RoleCard> with SingleTickerProviderStateMixi
         onTapDown: _onTapDown,
         onTapUp: _onTapUp,
         onTapCancel: _onTapCancel,
-        onTap: () {
-          _controller.forward().then((_) {
-            _controller.reverse();
-            widget.onTap();
-          });
-        },
+        onTap: widget.onTap,
         child: AnimatedBuilder(
           animation: _scaleAnimation,
           builder: (context, child) => Transform.scale(

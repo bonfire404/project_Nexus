@@ -4,6 +4,7 @@ import 'package:nexus/features/auth/presentation/providers/auth_controller.dart'
 import 'package:nexus/features/auth/presentation/screens/splash_screen.dart';
 import 'package:nexus/features/auth/presentation/screens/role_selection_screen.dart';
 import 'package:nexus/features/auth/presentation/screens/login_screen.dart';
+import 'package:nexus/features/auth/presentation/screens/role_onboarding_screen.dart';
 import 'package:nexus/features/dashboard/presentation/screens/home_screen.dart';
 import 'package:nexus/features/programs/presentation/screens/program_listing_screen.dart';
 import 'package:nexus/features/programs/presentation/screens/program_details_screen.dart';
@@ -17,6 +18,7 @@ class NexusRouter {
   static const String splash = '/splash';
   static const String roleSelect = '/role-select';
   static const String login = '/login';
+  static const String onboarding = '/onboarding';
   static const String home = '/home';
   static const String programs = '/programs';
   static const String programDetails = '/programs/:id';
@@ -64,13 +66,7 @@ class NexusRouter {
         }
 
         // 5. Has role but not authenticated — go to login
-        // We removed the roleSelect check here so it redirects once a role is picked
-        if (currentPath != login && currentPath != roleSelect) {
-          return login;
-        }
-        
-        // If at roleSelect but already have a role, go to login
-        if (currentPath == roleSelect && hasRole) {
+        if (currentPath != login) {
           return login;
         }
 
@@ -101,6 +97,12 @@ class NexusRouter {
           ),
         ),
         GoRoute(
+          path: onboarding,
+          builder: (context, state) => RoleOnboardingScreen(
+            authController: authController,
+          ),
+        ),
+        GoRoute(
           path: home,
           builder: (context, state) => HomeScreen(
             authController: authController,
@@ -109,7 +111,9 @@ class NexusRouter {
         ),
         GoRoute(
           path: programs,
-          builder: (context, state) => const ProgramListingScreen(),
+          builder: (context, state) => ProgramListingScreen(
+            authController: authController,
+          ),
         ),
         GoRoute(
           path: programDetails,
@@ -120,7 +124,9 @@ class NexusRouter {
         ),
         GoRoute(
           path: feedback,
-          builder: (context, state) => const FeedbackScreen(),
+          builder: (context, state) => FeedbackScreen(
+            authController: authController,
+          ),
         ),
       ],
     );

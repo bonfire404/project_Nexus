@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nexus/core/services/app_initializer.dart';
 
-/// Full-screen splash with app name. Auto-navigates after 2 seconds.
-/// Navigation is handled by the router's redirect logic — this screen
-/// simply waits, then signals readiness.
+/// Full-screen splash with rotating logo and app branding. Auto-navigates after minimum animation period.
 class SplashScreen extends StatefulWidget {
   final VoidCallback onInitialized;
 
@@ -31,14 +29,23 @@ class _SplashScreenState extends State<SplashScreen>
 
     _spinController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 2000),
     )..repeat();
 
     _initializeApp();
   }
 
   Future<void> _initializeApp() async {
+    final startTime = DateTime.now();
     await AppInitializer.initialize();
+    
+    // Ensure smooth minimum rotation time (2.2s) so the logo rotation plays gracefully on startup
+    final elapsed = DateTime.now().difference(startTime);
+    const minSplashDuration = Duration(milliseconds: 2200);
+    if (elapsed < minSplashDuration) {
+      await Future.delayed(minSplashDuration - elapsed);
+    }
+
     if (mounted) {
       widget.onInitialized();
     }

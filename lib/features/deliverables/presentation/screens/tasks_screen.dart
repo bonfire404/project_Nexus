@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nexus/core/utils/snackbar_utils.dart';
+import 'package:nexus/features/deliverables/data/repositories/task_firestore_repository.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 /// Intern's weekly task/deliverable tracker — toggleable and submittable.
 class TasksScreen extends StatefulWidget {
@@ -10,12 +12,39 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
-  final List<Map<String, dynamic>> _tasks = [
-    {'title': 'Weekly Progress Report', 'due': 'Jul 18, 2026', 'done': true},
-    {'title': 'UI Wireframe Submission', 'due': 'Jul 20, 2026', 'done': false},
-    {'title': 'Code Review: Sprint 3', 'due': 'Jul 22, 2026', 'done': false},
-    {'title': 'Team Retrospective Notes', 'due': 'Jul 24, 2026', 'done': false},
-  ];
+  final TaskFirestoreRepository _repository = TaskFirestoreRepository();
+  List<Map<String, dynamic>> _tasks = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTasks();
+  }
+
+  Future<void> _loadTasks() async {
+    try {
+      final userTasks = await _repository.getUserTasks('guest_user');
+      if (mounted) {
+        setState(() {
+          _tasks = userTasks.map((t) => {
+            'id': t['id'] as String? ?? '',
+            'title': t['title'] as String? ?? 'Task',
+            'due': 'Jul 2026',
+            'done': (t['status'] as String? ?? '') == 'Completed',
+          }).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _tasks = [];
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   int get _completedCount => _tasks.where((t) => t['done'] == true).length;
 
@@ -106,10 +135,12 @@ class _TasksScreenState extends State<TasksScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Skeletonizer(
+      enabled: _isLoading,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Deliverables',
@@ -228,6 +259,7 @@ class _TasksScreenState extends State<TasksScreen> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

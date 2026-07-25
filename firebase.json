@@ -1,0 +1,25 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "team14-cloud",
+          "appId": "1:29874567137:android:b52e5525f0774bfcd984a0",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "team14-cloud",
+          "configurations": {
+            "android": "1:29874567137:android:b52e5525f0774bfcd984a0",
+            "web": "1:29874567137:web:0e3e3dc9daa2f369d984a0"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}

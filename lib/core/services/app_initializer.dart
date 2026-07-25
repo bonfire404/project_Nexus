@@ -1,4 +1,7 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:nexus/core/services/firestore_seeder.dart';
 import 'package:nexus/core/services/sync_controller.dart';
+import 'package:nexus/firebase_options.dart';
 
 /// Handles the full application startup pipeline (network, auth, offline data)
 class AppInitializer {
@@ -6,12 +9,15 @@ class AppInitializer {
     // 1. Initialize global offline-to-online sync controller
     SyncController().initialize();
 
-    // 2. (Future) Hydrate Hive databases or other offline stores h ere
-    // Local preferences are handled lazily by respective controllers
+    // 2. Ensure Firebase core SDK is initialized
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
 
-    // 3. (Future) Initialize Firebase or custom backend SDK here
-    
-    // 4. (Future) Validate Auth Token here to determine initial route
+    // 3. Seed default Firestore collections if empty
+    await FirestoreSeeder.seedIfEmpty();
 
     // Artificial tiny delay to let splash animations play smoothly
     await Future.delayed(const Duration(milliseconds: 500));

@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nexus/app/theme_controller.dart';
 import 'package:nexus/core/enums/user_role.dart';
 import 'package:nexus/core/utils/snackbar_utils.dart';
+import 'package:nexus/features/admin/data/repositories/user_firestore_repository.dart';
 import 'package:nexus/features/admin/presentation/screens/users_screen.dart';
 import 'package:nexus/features/auth/presentation/providers/auth_controller.dart';
+import 'package:nexus/features/deliverables/data/repositories/task_firestore_repository.dart';
 import 'package:nexus/features/learning/presentation/screens/learning_screen.dart';
+import 'package:nexus/features/meetings/data/repositories/meeting_firestore_repository.dart';
 import 'package:nexus/features/profile/presentation/screens/settings_screen.dart';
+import 'package:nexus/features/programs/data/repositories/application_firestore_repository.dart';
+import 'package:nexus/features/programs/data/repositories/program_firestore_repository.dart';
+import 'package:nexus/features/programs/domain/entities/program.dart';
 import 'package:nexus/features/programs/presentation/screens/applications_screen.dart';
 import 'package:nexus/features/programs/presentation/screens/program_listing_screen.dart';
 import 'package:nexus/features/workspace/presentation/screens/workspace_screen.dart';
@@ -76,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'Home':
       case 'Dashboard':
         return _HomeDashboard(
-          role: _auth.selectedRole,
+          authController: _auth,
           theme: theme,
           onExplorePressed: () {
             final items = _navItems;
@@ -89,7 +97,7 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         );
       case 'Discover':
-        return const ProgramListingScreen();
+        return ProgramListingScreen(authController: _auth);
       case 'Applications':
         return const ApplicationsScreen();
       case 'Learning':
@@ -99,7 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'Users':
         return const UsersScreen();
       case 'Programs':
-        return const ProgramListingScreen();
+        return ProgramListingScreen(authController: _auth);
       case 'Settings':
         return SettingsScreen(
           authController: _auth,
@@ -115,13 +123,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final theme = Theme.of(context);
     final items = _navItems;
 
-    // Reset index if out of bounds (e.g. role change)
     if (_currentIndex >= items.length) {
       _currentIndex = 0;
     }
 
     return Scaffold(
-      extendBody: true, // Allows body to flow behind the floating nav bar
+      extendBody: true,
       appBar: AppBar(
         title: Row(
           children: [
@@ -162,7 +169,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Custom aesthetic floating navigation bar.
 class _FloatingNavBar extends StatelessWidget {
   final List<_NavItem> items;
   final int currentIndex;
@@ -242,14 +248,14 @@ class _FloatingNavBar extends StatelessWidget {
   }
 }
 
-/// Home dashboard tab content — role-aware.
+/// Home dashboard tab content — live system database integrated.
 class _HomeDashboard extends StatefulWidget {
-  final UserRole? role;
+  final AuthController authController;
   final ThemeData theme;
   final VoidCallback onExplorePressed;
 
   const _HomeDashboard({
-    required this.role,
+    required this.authController,
     required this.theme,
     required this.onExplorePressed,
   });
@@ -259,25 +265,180 @@ class _HomeDashboard extends StatefulWidget {
 }
 
 class _HomeDashboardState extends State<_HomeDashboard> {
+  final ProgramFirestoreRepository _programRepo = ProgramFirestoreRepository();
+  final ApplicationFirestoreRepository _appRepo = ApplicationFirestoreRepository();
+  final UserFirestoreRepository _userRepo = UserFirestoreRepository();
+  final TaskFirestoreRepository _taskRepo = TaskFirestoreRepository();
+  final MeetingFirestoreRepository _meetingRepo = MeetingFirestoreRepository();
+
   bool _isLoading = true;
+  List<Map<String, dynamic>> _liveStats = [];
+  List<Map<String, dynamic>> _liveActivity = [];
+  Map<String, dynamic>? _latestApplication;
+  Map<String, dynamic>? _nextMeeting;
+
+  ThemeData get theme => widget.theme;
+  UserRole? get role => widget.authController.selectedRole;
+  String get userDisplayName => widget.authController.userDisplayName;
+
+  String get userInitials {
+    final name = userDisplayName.trim();
+    if (name.isEmpty) return 'U';
+    final parts = name.split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return name[0].toUpperCase();
+  }
 
   @override
   void initState() {
     super.initState();
-    _simulateLoading();
+    _checkRoleOnboarding();
+    _loadDashboardData();
   }
 
-  Future<void> _simulateLoading() async {
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+  Future<void> _checkRoleOnboarding() async {
+    final user = widget.authController.currentUser;
+    if (user != null) {
+      final prefs = await SharedPreferences.getInstance();
+      final completed = prefs.getBool('onboarding_completed_${user.uid}') ?? false;
+      if (!completed && mounted) {
+        context.go('/onboarding');
+      }
     }
   }
 
-  ThemeData get theme => widget.theme;
-  UserRole? get role => widget.role;
+  Future<void> _loadDashboardData() async {
+    try {
+      final currentUserId = widget.authController.currentUser?.uid ?? 'guest_user';
+
+      if (role == UserRole.administrator) {
+        final users = await _userRepo.getAllUsers();
+        final programs = await _programRepo.getPrograms();
+
+        if (mounted) {
+          setState(() {
+            _liveStats = [
+              {
+                'label': 'Total Users',
+                'value': '${users.length}',
+                'icon': HugeIcons.strokeRoundedUserGroup,
+              },
+              {
+                'label': 'Programs',
+                'value': '${programs.length}',
+                'icon': HugeIcons.strokeRoundedBriefcase02,
+              },
+              {
+                'label': 'System Active',
+                'value': '${users.where((u) => u['status'] == 'Active').length}',
+                'icon': HugeIcons.strokeRoundedTime02,
+              },
+            ];
+
+            _liveActivity = users.take(3).map((u) => {
+              'title': 'User Registered',
+              'subtitle': u['name'] as String? ?? 'New User',
+              'time': 'Recent',
+              'icon': HugeIcons.strokeRoundedUserAdd01,
+            }).toList();
+
+            _isLoading = false;
+          });
+        }
+      } else if (role == UserRole.intern) {
+        final tasks = await _taskRepo.getUserTasks(currentUserId);
+        final meetings = await _meetingRepo.getUserMeetings(currentUserId);
+
+        final pendingTasks = tasks.where((t) => (t['status'] as String? ?? '') != 'Completed').length;
+        final completedTasks = tasks.where((t) => (t['status'] as String? ?? '') == 'Completed').length;
+
+        if (mounted) {
+          setState(() {
+            _liveStats = [
+              {
+                'label': 'Tasks Due',
+                'value': '$pendingTasks',
+                'icon': HugeIcons.strokeRoundedTask01,
+              },
+              {
+                'label': 'Meetings',
+                'value': '${meetings.length}',
+                'icon': HugeIcons.strokeRoundedCalendar01,
+              },
+              {
+                'label': 'Completed',
+                'value': '$completedTasks',
+                'icon': HugeIcons.strokeRoundedCheckmarkBadge01,
+              },
+            ];
+
+            _nextMeeting = meetings.isNotEmpty ? meetings.first : null;
+
+            _liveActivity = tasks.take(3).map((t) => {
+              'title': 'Task Update',
+              'subtitle': t['title'] as String? ?? 'Deliverable',
+              'time': 'Recent',
+              'icon': HugeIcons.strokeRoundedTaskDone01,
+            }).toList();
+
+            _isLoading = false;
+          });
+        }
+      } else {
+        // Applicant or Guest
+        final apps = await _appRepo.getUserApplications(currentUserId);
+        final pendingApps = apps.where((a) => (a['status'] as String? ?? '') == 'Pending').length;
+        final acceptedApps = apps.where((a) => (a['status'] as String? ?? '') == 'Accepted').length;
+
+        if (mounted) {
+          setState(() {
+            _liveStats = [
+              {
+                'label': 'Applications',
+                'value': '${apps.length}',
+                'icon': HugeIcons.strokeRoundedFolder01,
+              },
+              {
+                'label': 'Pending',
+                'value': '$pendingApps',
+                'icon': HugeIcons.strokeRoundedTime02,
+              },
+              {
+                'label': 'Accepted',
+                'value': '$acceptedApps',
+                'icon': HugeIcons.strokeRoundedCheckmarkBadge01,
+              },
+            ];
+
+            _latestApplication = apps.isNotEmpty ? apps.first : null;
+
+            _liveActivity = apps.take(3).map((a) => {
+              'title': 'Application Status',
+              'subtitle': a['programName'] as String? ?? 'Program',
+              'time': 'Recent',
+              'icon': HugeIcons.strokeRoundedFile01,
+            }).toList();
+
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _liveStats = [
+            {'label': 'Records', 'value': '0', 'icon': HugeIcons.strokeRoundedFolder01},
+            {'label': 'Status', 'value': 'Active', 'icon': HugeIcons.strokeRoundedTime02},
+            {'label': 'Updates', 'value': '0', 'icon': HugeIcons.strokeRoundedCheckmarkBadge01},
+          ];
+          _liveActivity = [];
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -298,7 +459,7 @@ class _HomeDashboardState extends State<_HomeDashboard> {
               child: ListTile(
                 leading: const Icon(Icons.explore),
                 title: const Text('Explore Programs'),
-                subtitle: const Text('Find the best program for your career'),
+                subtitle: const Text('Find available career development opportunities'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: widget.onExplorePressed,
               ),
@@ -324,30 +485,32 @@ class _HomeDashboardState extends State<_HomeDashboard> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '$greeting,',
-              style: widget.theme.textTheme.titleMedium?.copyWith(
-                color: widget.theme.colorScheme.onSurfaceVariant,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$greeting,',
+                style: widget.theme.textTheme.titleMedium?.copyWith(
+                  color: widget.theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'User',
-              style: widget.theme.textTheme.headlineSmall?.copyWith(
-                fontFamily: 'Kameron',
-                fontWeight: FontWeight.w700,
+              const SizedBox(height: 4),
+              Text(
+                userDisplayName,
+                style: widget.theme.textTheme.headlineSmall?.copyWith(
+                  fontFamily: 'Kameron',
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         CircleAvatar(
           radius: 24,
           backgroundColor: widget.theme.colorScheme.primaryContainer,
           child: Text(
-            'JD',
+            userInitials,
             style: TextStyle(
               color: widget.theme.colorScheme.onPrimaryContainer,
               fontWeight: FontWeight.bold,
@@ -359,11 +522,17 @@ class _HomeDashboardState extends State<_HomeDashboard> {
   }
 
   Widget _buildHeroCard(BuildContext context) {
-    switch (widget.role) {
+    switch (role) {
       case UserRole.applicant:
-        return _ApplicantHero(theme: theme);
+        return _ApplicantHero(
+          theme: theme,
+          latestApp: _latestApplication,
+        );
       case UserRole.intern:
-        return _InternHero(theme: theme);
+        return _InternHero(
+          theme: theme,
+          nextMeeting: _nextMeeting,
+        );
       case UserRole.administrator:
         return _AdminHero(theme: theme);
       case null:
@@ -372,7 +541,7 @@ class _HomeDashboardState extends State<_HomeDashboard> {
   }
 
   Widget _buildStatsRow(BuildContext context) {
-    if (widget.role == UserRole.administrator) {
+    if (role == UserRole.administrator) {
       return _buildAdminSparklineHUD(context);
     } else {
       return _buildUnifiedDataBar(context);
@@ -380,7 +549,7 @@ class _HomeDashboardState extends State<_HomeDashboard> {
   }
 
   Widget _buildUnifiedDataBar(BuildContext context) {
-    final stats = _statsCards;
+    if (_liveStats.isEmpty) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
       decoration: BoxDecoration(
@@ -392,32 +561,23 @@ class _HomeDashboardState extends State<_HomeDashboard> {
       ),
       child: Row(
         children: [
-          Expanded(
-            child: _UnifiedDataSegment(stat: stats[0], theme: theme),
-          ),
-          Container(
-            width: 1,
-            height: 60,
-            color: theme.colorScheme.outline.withValues(alpha: 0.15),
-          ),
-          Expanded(
-            child: _UnifiedDataSegment(stat: stats[1], theme: theme),
-          ),
-          Container(
-            width: 1,
-            height: 60,
-            color: theme.colorScheme.outline.withValues(alpha: 0.15),
-          ),
-          Expanded(
-            child: _UnifiedDataSegment(stat: stats[2], theme: theme),
-          ),
+          if (_liveStats.isNotEmpty)
+            Expanded(child: _UnifiedDataSegment(stat: _liveStats[0], theme: theme)),
+          if (_liveStats.length > 1) ...[
+            Container(width: 1, height: 60, color: theme.colorScheme.outline.withValues(alpha: 0.15)),
+            Expanded(child: _UnifiedDataSegment(stat: _liveStats[1], theme: theme)),
+          ],
+          if (_liveStats.length > 2) ...[
+            Container(width: 1, height: 60, color: theme.colorScheme.outline.withValues(alpha: 0.15)),
+            Expanded(child: _UnifiedDataSegment(stat: _liveStats[2], theme: theme)),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildAdminSparklineHUD(BuildContext context) {
-    final stats = _statsCards;
+    if (_liveStats.isEmpty) return const SizedBox.shrink();
     return Container(
       height: 160,
       decoration: BoxDecoration(
@@ -439,27 +599,12 @@ class _HomeDashboardState extends State<_HomeDashboard> {
           Positioned.fill(
             child: Row(
               children: [
-                Expanded(
-                  child: _UnifiedDataSegment(
-                    stat: stats[0],
-                    theme: theme,
-                    isTransparent: true,
-                  ),
-                ),
-                Expanded(
-                  child: _UnifiedDataSegment(
-                    stat: stats[1],
-                    theme: theme,
-                    isTransparent: true,
-                  ),
-                ),
-                Expanded(
-                  child: _UnifiedDataSegment(
-                    stat: stats[2],
-                    theme: theme,
-                    isTransparent: true,
-                  ),
-                ),
+                if (_liveStats.isNotEmpty)
+                  Expanded(child: _UnifiedDataSegment(stat: _liveStats[0], theme: theme, isTransparent: true)),
+                if (_liveStats.length > 1)
+                  Expanded(child: _UnifiedDataSegment(stat: _liveStats[1], theme: theme, isTransparent: true)),
+                if (_liveStats.length > 2)
+                  Expanded(child: _UnifiedDataSegment(stat: _liveStats[2], theme: theme, isTransparent: true)),
               ],
             ),
           ),
@@ -479,142 +624,44 @@ class _HomeDashboardState extends State<_HomeDashboard> {
           ),
         ),
         const SizedBox(height: 16),
-        ..._recentActivity.map(
-          (activity) => _ModernActivityRow(
-            title: activity['title'] as String,
-            subtitle: activity['subtitle'] as String,
-            time: activity['time'] as String,
-            icon: activity['icon'] as List<List<dynamic>>,
-            theme: theme,
-          ),
-        ),
+        _liveActivity.isEmpty
+            ? Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'No recent system activity.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              )
+            : Column(
+                children: _liveActivity.map((activity) {
+                  return _ModernActivityRow(
+                    title: activity['title'] as String? ?? '',
+                    subtitle: activity['subtitle'] as String? ?? '',
+                    time: activity['time'] as String? ?? '',
+                    icon: activity['icon'] as List<List<dynamic>>,
+                    theme: theme,
+                  );
+                }).toList(),
+              ),
       ],
     );
-  }
-
-
-  List<Map<String, dynamic>> get _statsCards {
-    switch (role) {
-      case UserRole.applicant:
-        return [
-          {
-            'label': 'Applications',
-            'value': '3',
-            'icon': HugeIcons.strokeRoundedFolder01,
-          },
-          {
-            'label': 'Pending',
-            'value': '1',
-            'icon': HugeIcons.strokeRoundedTime02,
-          },
-          {
-            'label': 'Accepted',
-            'value': '1',
-            'icon': HugeIcons.strokeRoundedCheckmarkBadge01,
-          },
-        ];
-      case UserRole.intern:
-        return [
-          {
-            'label': 'Tasks Due',
-            'value': '3',
-            'icon': HugeIcons.strokeRoundedTask01,
-          },
-          {
-            'label': 'Meetings',
-            'value': '2',
-            'icon': HugeIcons.strokeRoundedCalendar01,
-          },
-          {
-            'label': 'Completed',
-            'value': '5',
-            'icon': HugeIcons.strokeRoundedCheckmarkBadge01,
-          },
-        ];
-      case UserRole.administrator:
-        return [
-          {
-            'label': 'Users',
-            'value': '42',
-            'icon': HugeIcons.strokeRoundedUserGroup,
-          },
-          {
-            'label': 'Programs',
-            'value': '3',
-            'icon': HugeIcons.strokeRoundedBriefcase02,
-          },
-          {
-            'label': 'Pending',
-            'value': '8',
-            'icon': HugeIcons.strokeRoundedTime02,
-          },
-        ];
-      case null:
-        return [
-          {'label': 'Status', 'value': '—'},
-        ];
-    }
-  }
-
-  List<Map<String, dynamic>> get _recentActivity {
-    switch (role) {
-      case UserRole.applicant:
-        return [
-          {
-            'title': 'Application Submitted',
-            'subtitle': 'Frontend Web Dev',
-            'time': '2h ago',
-            'icon': HugeIcons.strokeRoundedFile01,
-          },
-          {
-            'title': 'Status Updated',
-            'subtitle': 'Data Science Internship',
-            'time': '1d ago',
-            'icon': HugeIcons.strokeRoundedNotification01,
-          },
-        ];
-      case UserRole.intern:
-        return [
-          {
-            'title': 'Task Completed',
-            'subtitle': 'Weekly Progress Report',
-            'time': '1h ago',
-            'icon': HugeIcons.strokeRoundedTaskDone01,
-          },
-          {
-            'title': 'Meeting Scheduled',
-            'subtitle': 'Mentor Check-in',
-            'time': '3h ago',
-            'icon': HugeIcons.strokeRoundedCalendar01,
-          },
-        ];
-      case UserRole.administrator:
-        return [
-          {
-            'title': 'New Application',
-            'subtitle': 'James Chen',
-            'time': '30m ago',
-            'icon': HugeIcons.strokeRoundedUserAdd01,
-          },
-          {
-            'title': 'Program Updated',
-            'subtitle': 'Frontend Web Dev',
-            'time': '1d ago',
-            'icon': HugeIcons.strokeRoundedFolder01,
-          },
-        ];
-      case null:
-        return [];
-    }
   }
 }
 
 class _ApplicantHero extends StatelessWidget {
   final ThemeData theme;
-  const _ApplicantHero({required this.theme});
+  final Map<String, dynamic>? latestApp;
+
+  const _ApplicantHero({required this.theme, this.latestApp});
 
   @override
   Widget build(BuildContext context) {
+    final title = latestApp?['programName'] as String? ?? 'No Active Application';
+    final status = latestApp?['status'] as String? ?? 'Pending';
+    final isReviewed = status == 'Accepted' || status == 'Reviewed';
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -643,7 +690,7 @@ class _ApplicantHero extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Text(
-            'Frontend Web Development',
+            title,
             style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w700,
               color: theme.colorScheme.onPrimaryContainer,
@@ -652,11 +699,11 @@ class _ApplicantHero extends StatelessWidget {
           const SizedBox(height: 32),
           Row(
             children: [
-              _buildStep('Applied', true),
-              _buildLine(true),
-              _buildStep('Review', true),
-              _buildLine(false),
-              _buildStep('Decision', false),
+              _buildStep('Submitted', true),
+              _buildLine(isReviewed),
+              _buildStep('Review', isReviewed),
+              _buildLine(status == 'Accepted'),
+              _buildStep('Decision', status == 'Accepted'),
             ],
           ),
         ],
@@ -719,10 +766,15 @@ class _ApplicantHero extends StatelessWidget {
 
 class _InternHero extends StatelessWidget {
   final ThemeData theme;
-  const _InternHero({required this.theme});
+  final Map<String, dynamic>? nextMeeting;
+
+  const _InternHero({required this.theme, this.nextMeeting});
 
   @override
   Widget build(BuildContext context) {
+    final title = nextMeeting?['title'] as String? ?? 'No Upcoming Meetings';
+    final subtitle = nextMeeting?['description'] as String? ?? 'Schedule synced';
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -753,7 +805,7 @@ class _InternHero extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                'In 30 mins',
+                'Scheduled',
                 style: theme.textTheme.labelMedium?.copyWith(
                   color: theme.colorScheme.onPrimary.withValues(alpha: 0.9),
                 ),
@@ -762,7 +814,7 @@ class _InternHero extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           Text(
-            'Mentor Sync: Sprint Review',
+            title,
             style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w700,
               color: theme.colorScheme.onPrimary,
@@ -770,14 +822,16 @@ class _InternHero extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Video call with Sarah Jenkins',
+            subtitle,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onPrimary.withValues(alpha: 0.9),
             ),
           ),
           const SizedBox(height: 32),
           ElevatedButton(
-            onPressed: () {},
+            onPressed: () {
+              showGlassSnackbar(context, 'Joining session...');
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: theme.colorScheme.onPrimary,
               foregroundColor: theme.colorScheme.primary,
@@ -788,7 +842,7 @@ class _InternHero extends StatelessWidget {
               ),
             ),
             child: const Text(
-              'Join Call',
+              'Join Session',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
@@ -944,6 +998,10 @@ class _AdminHero extends StatelessWidget {
   }
 
   void _handleAddUser(BuildContext context, ThemeData theme) {
+    final nameController = TextEditingController();
+    final emailController = TextEditingController();
+    final userRepo = UserFirestoreRepository();
+
     _showActionSheet(
       context,
       theme,
@@ -951,8 +1009,9 @@ class _AdminHero extends StatelessWidget {
       Column(
         children: [
           TextField(
+            controller: nameController,
             decoration: InputDecoration(
-              labelText: 'Email Address',
+              labelText: 'Full Name',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -960,8 +1019,9 @@ class _AdminHero extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           TextField(
+            controller: emailController,
             decoration: InputDecoration(
-              labelText: 'Role (e.g. Intern, Manager)',
+              labelText: 'Email Address',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -972,15 +1032,38 @@ class _AdminHero extends StatelessWidget {
             width: double.infinity,
             height: 48,
             child: FilledButton(
-              onPressed: () {
+              onPressed: () async {
+                final name = nameController.text.trim();
+                final email = emailController.text.trim();
+                if (name.isEmpty || email.isEmpty) return;
+
                 Navigator.pop(context);
-                showGlassSnackbar(
-                  context,
-                  'Invite sent',
-                  type: SnackbarType.success,
-                );
+                try {
+                  final docId = DateTime.now().millisecondsSinceEpoch.toString();
+                  await userRepo.setUserProfile(
+                    uid: docId,
+                    name: name,
+                    email: email,
+                    role: 'Intern',
+                  );
+                  if (context.mounted) {
+                    showGlassSnackbar(
+                      context,
+                      'User added to system database',
+                      type: SnackbarType.success,
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    showGlassSnackbar(
+                      context,
+                      'Error adding user: $e',
+                      type: SnackbarType.error,
+                    );
+                  }
+                }
               },
-              child: const Text('Send Invite'),
+              child: const Text('Add User'),
             ),
           ),
         ],
@@ -989,6 +1072,10 @@ class _AdminHero extends StatelessWidget {
   }
 
   void _handleNewProgram(BuildContext context, ThemeData theme) {
+    final nameController = TextEditingController();
+    final descController = TextEditingController();
+    final programRepo = ProgramFirestoreRepository();
+
     _showActionSheet(
       context,
       theme,
@@ -996,6 +1083,7 @@ class _AdminHero extends StatelessWidget {
       Column(
         children: [
           TextField(
+            controller: nameController,
             decoration: InputDecoration(
               labelText: 'Program Name',
               border: OutlineInputBorder(
@@ -1005,6 +1093,7 @@ class _AdminHero extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           TextField(
+            controller: descController,
             maxLines: 3,
             decoration: InputDecoration(
               labelText: 'Description',
@@ -1018,13 +1107,37 @@ class _AdminHero extends StatelessWidget {
             width: double.infinity,
             height: 48,
             child: FilledButton(
-              onPressed: () {
+              onPressed: () async {
+                final name = nameController.text.trim();
+                final desc = descController.text.trim();
+                if (name.isEmpty) return;
+
                 Navigator.pop(context);
-                showGlassSnackbar(
-                  context,
-                  'Program created',
-                  type: SnackbarType.success,
-                );
+                try {
+                  await programRepo.addProgram(Program(
+                    id: '',
+                    title: name,
+                    description: desc.isNotEmpty ? desc : 'Program description',
+                    imageUrl: '',
+                    duration: '12 Weeks',
+                    level: 'Intermediate',
+                  ));
+                  if (context.mounted) {
+                    showGlassSnackbar(
+                      context,
+                      'Program created in system database',
+                      type: SnackbarType.success,
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    showGlassSnackbar(
+                      context,
+                      'Error creating program: $e',
+                      type: SnackbarType.error,
+                    );
+                  }
+                }
               },
               child: const Text('Create Program'),
             ),
@@ -1038,7 +1151,7 @@ class _AdminHero extends StatelessWidget {
     _showActionSheet(
       context,
       theme,
-      'Generate Report',
+      'Generate System Report',
       Column(
         children: [
           ListTile(
@@ -1049,7 +1162,7 @@ class _AdminHero extends StatelessWidget {
             title: const Text('Export as PDF'),
             onTap: () {
               Navigator.pop(context);
-              showGlassSnackbar(context, 'Downloading PDF...');
+              showGlassSnackbar(context, 'Exporting PDF system report...');
             },
           ),
           ListTile(
@@ -1057,7 +1170,7 @@ class _AdminHero extends StatelessWidget {
             title: const Text('Export as CSV'),
             onTap: () {
               Navigator.pop(context);
-              showGlassSnackbar(context, 'Downloading CSV...');
+              showGlassSnackbar(context, 'Exporting CSV data sheet...');
             },
           ),
         ],
@@ -1101,7 +1214,7 @@ class _UnifiedDataSegment extends StatelessWidget {
           const SizedBox(height: 12),
         ],
         Text(
-          stat['value'] as String,
+          stat['value'] as String? ?? '0',
           style: theme.textTheme.headlineMedium?.copyWith(
             fontFamily: 'Kameron',
             fontWeight: FontWeight.w700,
@@ -1110,7 +1223,7 @@ class _UnifiedDataSegment extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          stat['label'] as String,
+          stat['label'] as String? ?? 'Record',
           style: theme.textTheme.labelMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -1247,7 +1360,6 @@ class _ModernActivityRow extends StatelessWidget {
   }
 }
 
-/// Placeholder tab for any remaining unbuilt features.
 class _PlaceholderTab extends StatelessWidget {
   final String label;
   final ThemeData theme;
@@ -1279,7 +1391,6 @@ class _PlaceholderTab extends StatelessWidget {
   }
 }
 
-/// Internal model for nav items.
 class _NavItem {
   final String label;
   final List<List<dynamic>> icon;

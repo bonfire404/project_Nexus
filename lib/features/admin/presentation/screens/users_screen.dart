@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:nexus/core/utils/snackbar_utils.dart';
+import 'package:nexus/features/admin/data/repositories/user_firestore_repository.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
-/// Admin's user management screen — searchable, filterable, with user detail.
+/// Admin's user management screen — minimalist with + Add User and Swipe-to-Delete.
 class UsersScreen extends StatefulWidget {
   const UsersScreen({super.key});
 
@@ -12,33 +14,43 @@ class UsersScreen extends StatefulWidget {
 }
 
 class _UsersScreenState extends State<UsersScreen> {
+  final UserFirestoreRepository _repository = UserFirestoreRepository();
   final _searchController = TextEditingController();
+  StreamSubscription<List<Map<String, dynamic>>>? _usersSubscription;
   String _searchQuery = '';
   String _roleFilter = 'All';
   bool _isLoading = true;
+  List<Map<String, String>> _users = [];
 
   @override
   void initState() {
     super.initState();
-    _simulateLoading();
+    _subscribeToUsers();
   }
 
-  Future<void> _simulateLoading() async {
-    await Future.delayed(const Duration(milliseconds: 1000));
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+  void _subscribeToUsers() {
+    _usersSubscription = _repository.streamAllUsers().listen(
+      (firestoreUsers) {
+        if (mounted) {
+          setState(() {
+            _users = firestoreUsers.map((u) => {
+              'uid': u['id'] as String? ?? u['uid'] as String? ?? '',
+              'name': u['name'] as String? ?? 'User',
+              'role': u['role'] as String? ?? 'Intern',
+              'status': u['status'] as String? ?? 'Active',
+              'email': u['email'] as String? ?? 'user@example.com',
+            }).toList();
+            _isLoading = false;
+          });
+        }
+      },
+      onError: (error) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      },
+    );
   }
-
-  final List<Map<String, String>> _users = [
-    {'name': 'Maria Santos', 'role': 'Intern', 'status': 'Active', 'email': 'maria@example.com'},
-    {'name': 'James Chen', 'role': 'Applicant', 'status': 'Pending', 'email': 'james@example.com'},
-    {'name': 'Aisha Patel', 'role': 'Intern', 'status': 'Active', 'email': 'aisha@example.com'},
-    {'name': 'Carlos Rivera', 'role': 'Applicant', 'status': 'Pending', 'email': 'carlos@example.com'},
-    {'name': 'Yuki Tanaka', 'role': 'Intern', 'status': 'Inactive', 'email': 'yuki@example.com'},
-  ];
 
   List<Map<String, String>> get _filtered {
     return _users.where((u) {
@@ -54,8 +66,130 @@ class _UsersScreenState extends State<UsersScreen> {
 
   @override
   void dispose() {
+    _usersSubscription?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _showAddUserSheet() {
+    final theme = Theme.of(context);
+    final nameController = TextEditingController();
+    final emailController = TextEditingController();
+    String defaultRole = _roleFilter == 'Applicants' ? 'Applicant' : 'Intern';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+                top: 24,
+                left: 24,
+                right: 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Add User',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontFamily: 'Kameron',
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: nameController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Full Name',
+                      hintText: 'e.g. Jordan Lee',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'Email Address',
+                      hintText: 'jordan@example.com',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: defaultRole,
+                    decoration: const InputDecoration(labelText: 'Assigned Role'),
+                    items: ['Intern', 'Applicant']
+                        .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) setSheetState(() => defaultRole = val);
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final name = nameController.text.trim();
+                        final email = emailController.text.trim();
+                        if (name.isEmpty || email.isEmpty) return;
+
+                        Navigator.pop(ctx);
+                        final newUid = 'usr_${DateTime.now().millisecondsSinceEpoch}';
+                        try {
+                          await _repository.setUserProfile(
+                            uid: newUid,
+                            name: name,
+                            email: email,
+                            role: defaultRole,
+                          );
+                          if (mounted) {
+                            showGlassSnackbar(
+                              context,
+                              'Added $defaultRole "$name" successfully!',
+                              type: SnackbarType.success,
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            showGlassSnackbar(
+                              context,
+                              'Error adding user: $e',
+                              type: SnackbarType.error,
+                            );
+                          }
+                        }
+                      },
+                      child: const Text('Add User'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void _showUserDetail(Map<String, String> user) {
@@ -94,7 +228,7 @@ class _UsersScreenState extends State<UsersScreen> {
                   radius: 24,
                   backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
                   child: Text(
-                    user['name']![0],
+                    user['name']!.isNotEmpty ? user['name']![0] : 'U',
                     style: theme.textTheme.titleMedium?.copyWith(
                       color: theme.colorScheme.primary,
                       fontWeight: FontWeight.w700,
@@ -163,7 +297,11 @@ class _UsersScreenState extends State<UsersScreen> {
                   child: OutlinedButton(
                     onPressed: () {
                       Navigator.pop(ctx);
-                      showGlassSnackbar(context, 'Message sent to ${user['name']}', type: SnackbarType.success);
+                      showGlassSnackbar(
+                        context,
+                        'Message sent to ${user['name']}',
+                        type: SnackbarType.success,
+                      );
                     },
                     child: const Text('Message'),
                   ),
@@ -171,11 +309,35 @@ class _UsersScreenState extends State<UsersScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
+                      final uid = user['uid']!;
                       Navigator.pop(ctx);
-                      showGlassSnackbar(context, 'Viewing ${user['name']}\'s profile');
+                      if (uid.isNotEmpty) {
+                        try {
+                          await _repository.deleteUser(uid);
+                          if (mounted) {
+                            showGlassSnackbar(
+                              context,
+                              'User "${user['name']}" removed from database.',
+                              type: SnackbarType.warning,
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            showGlassSnackbar(
+                              context,
+                              'Error removing user: $e',
+                              type: SnackbarType.error,
+                            );
+                          }
+                        }
+                      }
                     },
-                    child: const Text('View Profile'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Remove User'),
                   ),
                 ),
               ],
@@ -199,12 +361,22 @@ class _UsersScreenState extends State<UsersScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Users',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontFamily: 'Kameron',
-                fontWeight: FontWeight.w600,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Users Management',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontFamily: 'Kameron',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline),
+                  tooltip: 'Add User',
+                  onPressed: _showAddUserSheet,
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             TextField(
@@ -260,7 +432,7 @@ class _UsersScreenState extends State<UsersScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              '${results.length} user${results.length == 1 ? '' : 's'}',
+              '${results.length} user${results.length == 1 ? '' : 's'} (Swipe left to delete)',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -286,82 +458,125 @@ class _UsersScreenState extends State<UsersScreen> {
                             : user['status'] == 'Inactive'
                                 ? Colors.red
                                 : Colors.orange;
-  
-                        return GestureDetector(
-                          onTap: () => _showUserDetail(user),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
+
+                        return Dismissible(
+                          key: Key('${user['uid']}_$index'),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 20),
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.surface,
+                              color: Colors.red.withValues(alpha: 0.85),
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: theme.colorScheme.outline
-                                    .withValues(alpha: 0.2),
-                              ),
                             ),
-                            child: Row(
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                CircleAvatar(
-                                  radius: 18,
-                                  backgroundColor: theme.colorScheme.primary
-                                      .withValues(alpha: 0.1),
-                                  child: Text(
-                                    user['name']![0],
-                                    style: theme.textTheme.titleSmall?.copyWith(
-                                      color: theme.colorScheme.primary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        user['name']!,
-                                        style:
-                                            theme.textTheme.titleSmall?.copyWith(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      Text(
-                                        user['role']!,
-                                        style:
-                                            theme.textTheme.bodySmall?.copyWith(
-                                          color:
-                                              theme.colorScheme.onSurfaceVariant,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: statusColor,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
+                                Icon(Icons.delete_outline, color: Colors.white, size: 20),
+                                SizedBox(width: 4),
                                 Text(
-                                  user['status']!,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: statusColor,
-                                    fontWeight: FontWeight.w500,
+                                  'Delete',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
                                   ),
-                                ),
-                                const SizedBox(width: 4),
-                                Icon(
-                                  Icons.chevron_right,
-                                  size: 18,
-                                  color: theme.colorScheme.onSurfaceVariant,
                                 ),
                               ],
+                            ),
+                          ),
+                          onDismissed: (direction) async {
+                            final uid = user['uid']!;
+                            final name = user['name']!;
+                            if (uid.isNotEmpty) {
+                              try {
+                                await _repository.deleteUser(uid);
+                                if (mounted) {
+                                  showGlassSnackbar(
+                                    context,
+                                    'Deleted "$name" from system database.',
+                                    type: SnackbarType.warning,
+                                  );
+                                }
+                              } catch (_) {}
+                            }
+                          },
+                          child: GestureDetector(
+                            onTap: () => _showUserDetail(user),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
+                              ),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surface,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: theme.colorScheme.outline
+                                      .withValues(alpha: 0.2),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: theme.colorScheme.primary
+                                        .withValues(alpha: 0.1),
+                                    child: Text(
+                                      user['name']!.isNotEmpty ? user['name']![0] : 'U',
+                                      style: theme.textTheme.titleSmall?.copyWith(
+                                        color: theme.colorScheme.primary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          user['name']!,
+                                          style:
+                                              theme.textTheme.titleSmall?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        Text(
+                                          user['role']!,
+                                          style:
+                                              theme.textTheme.bodySmall?.copyWith(
+                                            color:
+                                                theme.colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: statusColor,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    user['status']!,
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: statusColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.chevron_right,
+                                    size: 18,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         );
