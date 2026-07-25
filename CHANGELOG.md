@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.0](https://github.com/bonfire404/project_Nexus/compare/v1.1.0...v1.2.0) (2026-07-25)
+
+
+### Features
+
+* role onboarding, biometrics, custom photo upload, real-time sync, and skeletonizer preloaders ([169fa44](https://github.com/bonfire404/project_Nexus/commit/169fa4484c6bd28e53010042af61caad94539999))
+* setup environment configuration via flutter_dotenv and .env.example ([32e91f0](https://github.com/bonfire404/project_Nexus/commit/32e91f00d23c3e1d70e7d335a8f6be4049499f4d))
+* Week 3 - API-connected functional app with feedback form and documentation ([9229134](https://github.com/bonfire404/project_Nexus/commit/92291347119ba33a53986b0e1e16db22869519e4))
+
 ## [1.1.0](https://github.com/bonfire404/project_Nexus/compare/v1.0.0...v1.1.0) (2026-07-20)
 
 

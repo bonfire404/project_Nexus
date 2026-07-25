@@ -1,7 +1,7 @@
 name: nexus
 description: "Excelerate Nexus unified platform for program discovery, internships, collaboration, and administration."
 publish_to: 'none'
-version: 1.1.0+2
+version: 1.2.0+3
 
 environment:
   sdk: ^3.12.0
