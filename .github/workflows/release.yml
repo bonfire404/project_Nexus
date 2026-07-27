@@ -41,6 +41,10 @@ jobs:
         if: ${{ steps.release.outputs.release_created }}
         run: flutter pub get
 
+      - name: Create .env asset file
+        if: ${{ steps.release.outputs.release_created }}
+        run: touch .env
+
       - name: Build Production APK
         if: ${{ steps.release.outputs.release_created }}
         run: flutter build apk --release
