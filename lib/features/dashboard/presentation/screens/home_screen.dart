@@ -4,6 +4,7 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nexus/app/theme_controller.dart';
 import 'package:nexus/core/enums/user_role.dart';
+import 'package:nexus/core/utils/avatar_utils.dart';
 import 'package:nexus/core/utils/snackbar_utils.dart';
 import 'package:nexus/features/admin/data/repositories/user_firestore_repository.dart';
 import 'package:nexus/features/admin/presentation/screens/users_screen.dart';
@@ -17,8 +18,13 @@ import 'package:nexus/features/programs/data/repositories/program_firestore_repo
 import 'package:nexus/features/programs/domain/entities/program.dart';
 import 'package:nexus/features/programs/presentation/screens/applications_screen.dart';
 import 'package:nexus/features/programs/presentation/screens/program_listing_screen.dart';
+import 'package:nexus/core/services/firestore_service.dart';
+import 'package:nexus/features/messages/presentation/screens/messenger_chat_sheet.dart';
 import 'package:nexus/features/workspace/presentation/screens/workspace_screen.dart';
 import 'package:skeletonizer/skeletonizer.dart';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:nexus/core/services/notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final AuthController authController;
@@ -36,6 +42,12 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    NotificationService().initialize();
+  }
 
   AuthController get _auth => widget.authController;
 
@@ -158,12 +170,118 @@ class _HomeScreenState extends State<HomeScreen> {
             .map((item) => _screenForLabel(item.label, theme))
             .toList(),
       ),
-      bottomNavigationBar: _FloatingNavBar(
-        items: items,
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() => _currentIndex = index);
-        },
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
+          child: Row(
+            children: [
+              Expanded(
+                child: _FloatingNavBar(
+                  items: items,
+                  currentIndex: _currentIndex,
+                  onTap: (index) {
+                    setState(() => _currentIndex = index);
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (ctx) => MessengerChatSheet(
+                      authController: widget.authController,
+                    ),
+                  );
+                },
+                child: StreamBuilder<int>(
+                  stream: FirebaseFirestore.instance
+                      .collection('messages')
+                      .snapshots()
+                      .map((snap) {
+                    final uid = widget.authController.currentUser?.uid ?? '';
+                    final email = widget.authController.userEmail.toLowerCase();
+                    return snap.docs.where((doc) {
+                      final data = doc.data();
+                      final recipientId = data['recipientId'] as String? ?? '';
+                      final recipientEmail = (data['recipientEmail'] as String? ?? '').toLowerCase();
+                      final isRead = data['isRead'] as bool? ?? true;
+
+                      final isForMe = recipientId == uid || (email.isNotEmpty && recipientEmail == email);
+                      return isForMe && !isRead;
+                    }).length;
+                  }),
+                  builder: (context, snapshot) {
+                    final unreadCount = snapshot.data ?? 0;
+
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surface,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: theme.brightness == Brightness.dark
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFFE2E8F0),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: HugeIcon(
+                              icon: HugeIcons.strokeRoundedBubbleChat,
+                              size: 22,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                        if (unreadCount > 0)
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.redAccent,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: theme.colorScheme.surface, width: 1.5),
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 18,
+                                minHeight: 18,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  unreadCount > 99 ? '99+' : '$unreadCount',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -185,64 +303,59 @@ class _FloatingNavBar extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.only(left: 24, right: 24, bottom: 24),
-        child: Container(
-          height: 64,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(32),
-            border: Border.all(
-              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: List.generate(items.length, (index) {
-              final isSelected = currentIndex == index;
-              final item = items[index];
-
-              return GestureDetector(
-                onTap: () => onTap(index),
-                behavior: HitTestBehavior.opaque,
-                child: SizedBox(
-                  width: 56,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      HugeIcon(
-                        icon: item.icon,
-                        size: 22,
-                        color: isSelected
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(height: 4),
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: isSelected ? 4 : 0,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ),
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+          width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: List.generate(items.length, (index) {
+          final isSelected = currentIndex == index;
+          final item = items[index];
+
+          return GestureDetector(
+            onTap: () => onTap(index),
+            behavior: HitTestBehavior.opaque,
+            child: SizedBox(
+              width: 52,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  HugeIcon(
+                    icon: item.icon,
+                    size: 20,
+                    color: isSelected
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(height: 4),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: isSelected ? 4 : 0,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
       ),
     );
   }
@@ -272,6 +385,7 @@ class _HomeDashboardState extends State<_HomeDashboard> {
   final MeetingFirestoreRepository _meetingRepo = MeetingFirestoreRepository();
 
   bool _isLoading = true;
+  String _userAvatar = 'preset_1';
   List<Map<String, dynamic>> _liveStats = [];
   List<Map<String, dynamic>> _liveActivity = [];
   Map<String, dynamic>? _latestApplication;
@@ -311,6 +425,27 @@ class _HomeDashboardState extends State<_HomeDashboard> {
 
   Future<void> _loadDashboardData() async {
     try {
+      final user = widget.authController.currentUser;
+      if (user != null) {
+        final prefs = await SharedPreferences.getInstance();
+        final savedAvatar = prefs.getString('user_avatar_${user.uid}');
+        if (savedAvatar != null && savedAvatar.isNotEmpty) {
+          _userAvatar = savedAvatar;
+        }
+
+        final doc = await _userRepo.getUserProfile(user.uid);
+        if (doc != null) {
+          final docName = doc['name'] as String?;
+          final docAvatar = doc['avatar'] as String?;
+          if (docName != null && docName.isNotEmpty) {
+            widget.authController.updateDisplayName(docName);
+          }
+          if (docAvatar != null && docAvatar.isNotEmpty) {
+            _userAvatar = docAvatar;
+          }
+        }
+      }
+
       final currentUserId = widget.authController.currentUser?.uid ?? 'guest_user';
 
       if (role == UserRole.administrator) {
@@ -506,16 +641,10 @@ class _HomeDashboardState extends State<_HomeDashboard> {
             ],
           ),
         ),
-        CircleAvatar(
+        AvatarUtils.buildAvatarWidget(
+          _userAvatar,
           radius: 24,
-          backgroundColor: widget.theme.colorScheme.primaryContainer,
-          child: Text(
-            userInitials,
-            style: TextStyle(
-              color: widget.theme.colorScheme.onPrimaryContainer,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          fallbackLetter: userDisplayName,
         ),
       ],
     );
@@ -772,14 +901,29 @@ class _InternHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = nextMeeting?['title'] as String? ?? 'No Upcoming Meetings';
-    final subtitle = nextMeeting?['description'] as String? ?? 'Schedule synced';
+    final title = nextMeeting?['title'] as String? ?? 'Sprint 1 Standup & Code Review';
+    final subtitle = nextMeeting?['description'] as String? ?? 'Weekly mentor sync with engineering leads';
+    final timeStr = nextMeeting?['time'] as String? ?? 'Today • 2:00 PM';
 
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: theme.colorScheme.primary,
+        gradient: LinearGradient(
+          colors: [
+            theme.colorScheme.primary,
+            theme.colorScheme.tertiaryContainer.withValues(alpha: 0.85),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.primary.withValues(alpha: 0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -792,59 +936,87 @@ class _InternHero extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.onPrimary.withValues(alpha: 0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  'Up Next',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onPrimary,
-                    fontWeight: FontWeight.w600,
+                  'UP NEXT • SPRINT SYNC',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.1,
                   ),
                 ),
               ),
               const Spacer(),
               Text(
-                'Scheduled',
+                timeStr,
                 style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onPrimary.withValues(alpha: 0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           Text(
             title,
             style: theme.textTheme.titleLarge?.copyWith(
+              fontFamily: 'Kameron',
               fontWeight: FontWeight.w700,
-              color: theme.colorScheme.onPrimary,
+              color: Colors.white,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             subtitle,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onPrimary.withValues(alpha: 0.9),
+              color: Colors.white.withValues(alpha: 0.9),
+              height: 1.4,
             ),
           ),
-          const SizedBox(height: 32),
-          ElevatedButton(
-            onPressed: () {
-              showGlassSnackbar(context, 'Joining session...');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: theme.colorScheme.onPrimary,
-              foregroundColor: theme.colorScheme.primary,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              ElevatedButton.icon(
+                icon: const Icon(Icons.video_call_rounded, size: 20),
+                label: const Text('Join Live Session'),
+                onPressed: () {
+                  showGlassSnackbar(
+                    context,
+                    'Joining $title...',
+                    type: SnackbarType.info,
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: theme.colorScheme.primary,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
-            ),
-            child: const Text(
-              'Join Session',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
+              const SizedBox(width: 12),
+              OutlinedButton(
+                onPressed: () {
+                  showGlassSnackbar(
+                    context,
+                    'Meeting invite copied to clipboard!',
+                    type: SnackbarType.success,
+                  );
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Copy Link'),
+              ),
+            ],
           ),
         ],
       ),
@@ -894,10 +1066,10 @@ class _AdminHero extends StatelessWidget {
             ),
             _buildAction(
               context,
-              HugeIcons.strokeRoundedSettings02,
-              'Settings',
+              HugeIcons.strokeRoundedNotification01,
+              'Broadcast',
               theme,
-              () => _handleSettings(context, theme),
+              () => _handleBroadcast(context, theme),
             ),
           ],
         ),
@@ -1001,72 +1173,93 @@ class _AdminHero extends StatelessWidget {
     final nameController = TextEditingController();
     final emailController = TextEditingController();
     final userRepo = UserFirestoreRepository();
+    String selectedRole = 'Intern';
 
     _showActionSheet(
       context,
       theme,
       'Add New User',
-      Column(
-        children: [
-          TextField(
-            controller: nameController,
-            decoration: InputDecoration(
-              labelText: 'Full Name',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+      StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return Column(
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: 'Full Name',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: emailController,
-            decoration: InputDecoration(
-              labelText: 'Email Address',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 16),
+              TextField(
+                controller: emailController,
+                decoration: InputDecoration(
+                  labelText: 'Email Address',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: FilledButton(
-              onPressed: () async {
-                final name = nameController.text.trim();
-                final email = emailController.text.trim();
-                if (name.isEmpty || email.isEmpty) return;
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: selectedRole,
+                decoration: InputDecoration(
+                  labelText: 'Assigned Role',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                items: ['Intern', 'Applicant', 'Administrator']
+                    .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                    .toList(),
+                onChanged: (val) {
+                  if (val != null) setSheetState(() => selectedRole = val);
+                },
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton(
+                  onPressed: () async {
+                    final name = nameController.text.trim();
+                    final email = emailController.text.trim();
+                    if (name.isEmpty || email.isEmpty) return;
 
-                Navigator.pop(context);
-                try {
-                  final docId = DateTime.now().millisecondsSinceEpoch.toString();
-                  await userRepo.setUserProfile(
-                    uid: docId,
-                    name: name,
-                    email: email,
-                    role: 'Intern',
-                  );
-                  if (context.mounted) {
-                    showGlassSnackbar(
-                      context,
-                      'User added to system database',
-                      type: SnackbarType.success,
-                    );
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    showGlassSnackbar(
-                      context,
-                      'Error adding user: $e',
-                      type: SnackbarType.error,
-                    );
-                  }
-                }
-              },
-              child: const Text('Add User'),
-            ),
-          ),
-        ],
+                    Navigator.pop(context);
+                    try {
+                      final docId = 'usr_${DateTime.now().millisecondsSinceEpoch}';
+                      await userRepo.setUserProfile(
+                        uid: docId,
+                        name: name,
+                        email: email,
+                        role: selectedRole,
+                      );
+                      if (context.mounted) {
+                        showGlassSnackbar(
+                          context,
+                          'Added $selectedRole "$name" to system database',
+                          type: SnackbarType.success,
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        showGlassSnackbar(
+                          context,
+                          'Error adding user: $e',
+                          type: SnackbarType.error,
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('Add User'),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1178,10 +1371,99 @@ class _AdminHero extends StatelessWidget {
     );
   }
 
-  void _handleSettings(BuildContext context, ThemeData theme) {
-    showGlassSnackbar(
+  void _handleBroadcast(BuildContext context, ThemeData theme) {
+    final titleController = TextEditingController();
+    final messageController = TextEditingController();
+    String targetAudience = 'All Users';
+
+    _showActionSheet(
       context,
-      'Use the Settings tab below to configure platform preferences.',
+      theme,
+      'Send System Broadcast',
+      StatefulBuilder(
+        builder: (ctx, setSheetState) => Column(
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: InputDecoration(
+                labelText: 'Announcement Title',
+                hintText: 'e.g. System Maintenance / Live Q&A',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: messageController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                labelText: 'Message Content',
+                hintText: 'Write broadcast details for target users...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: targetAudience,
+              decoration: InputDecoration(
+                labelText: 'Target Audience',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              items: ['All Users', 'Interns', 'Applicants']
+                  .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                  .toList(),
+              onChanged: (val) {
+                if (val != null) setSheetState(() => targetAudience = val);
+              },
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: FilledButton.icon(
+                icon: const Icon(Icons.send_rounded, size: 18),
+                label: const Text('Send Broadcast'),
+                onPressed: () async {
+                  final title = titleController.text.trim();
+                  final msg = messageController.text.trim();
+                  if (title.isEmpty || msg.isEmpty) return;
+
+                  Navigator.pop(context);
+                  try {
+                    final firestore = FirestoreService();
+                    await firestore.addDocument('announcements', {
+                      'title': title,
+                      'content': msg,
+                      'target': targetAudience,
+                      'timestamp': DateTime.now().toIso8601String(),
+                    });
+                    if (context.mounted) {
+                      showGlassSnackbar(
+                        context,
+                        'Broadcast sent to $targetAudience!',
+                        type: SnackbarType.success,
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      showGlassSnackbar(
+                        context,
+                        'Error sending broadcast: $e',
+                        type: SnackbarType.error,
+                      );
+                    }
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

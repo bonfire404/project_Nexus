@@ -7,12 +7,16 @@ import 'package:nexus/features/auth/presentation/providers/auth_controller.dart'
 import 'package:nexus/core/utils/app_version.dart';
 import 'package:nexus/firebase_options.dart';
 
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:nexus/core/services/notification_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await AppVersion.init();
   final authController = AuthController();
   final themeController = ThemeController();

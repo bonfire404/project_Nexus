@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:nexus/core/utils/snackbar_utils.dart';
+import 'package:nexus/core/utils/avatar_utils.dart';
 import 'package:nexus/features/admin/data/repositories/user_firestore_repository.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:skeletonizer/skeletonizer.dart';
@@ -28,6 +29,19 @@ class _UsersScreenState extends State<UsersScreen> {
     _subscribeToUsers();
   }
 
+  String _computeUserStatus(Map<String, dynamic> u) {
+    final status = (u['status'] as String? ?? 'Offline').trim();
+    final lastSeenStr = u['lastSeen'] as String? ?? '';
+    if (status.toLowerCase() == 'online' && lastSeenStr.isNotEmpty) {
+      final lastSeen = DateTime.tryParse(lastSeenStr);
+      if (lastSeen != null) {
+        final diff = DateTime.now().difference(lastSeen);
+        if (diff.inMinutes <= 2) return 'Online';
+      }
+    }
+    return 'Offline';
+  }
+
   void _subscribeToUsers() {
     _usersSubscription = _repository.streamAllUsers().listen(
       (firestoreUsers) {
@@ -37,8 +51,9 @@ class _UsersScreenState extends State<UsersScreen> {
               'uid': u['id'] as String? ?? u['uid'] as String? ?? '',
               'name': u['name'] as String? ?? 'User',
               'role': u['role'] as String? ?? 'Intern',
-              'status': u['status'] as String? ?? 'Active',
+              'status': _computeUserStatus(u),
               'email': u['email'] as String? ?? 'user@example.com',
+              'avatar': u['avatar'] as String? ?? u['photoUrl'] as String? ?? '',
             }).toList();
             _isLoading = false;
           });
@@ -137,7 +152,7 @@ class _UsersScreenState extends State<UsersScreen> {
                   DropdownButtonFormField<String>(
                     initialValue: defaultRole,
                     decoration: const InputDecoration(labelText: 'Assigned Role'),
-                    items: ['Intern', 'Applicant']
+                    items: ['Intern', 'Applicant', 'Administrator']
                         .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                         .toList(),
                     onChanged: (val) {
@@ -194,156 +209,193 @@ class _UsersScreenState extends State<UsersScreen> {
 
   void _showUserDetail(Map<String, String> user) {
     final theme = Theme.of(context);
-    final statusColor = user['status'] == 'Active'
-        ? Colors.green
-        : user['status'] == 'Inactive'
-            ? Colors.red
-            : Colors.orange;
+    final isOnline = user['status'] == 'Online';
+    final statusColor = isOnline ? Colors.green : Colors.grey;
+    String currentRole = user['role'] ?? 'Intern';
 
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.outline.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  child: Text(
-                    user['name']!.isNotEmpty ? user['name']![0] : 'U',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user['name']!,
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+                    child: Text(
+                      user['name']!.isNotEmpty ? user['name']![0] : 'U',
                       style: theme.textTheme.titleMedium?.copyWith(
-                        fontFamily: 'Kameron',
+                        color: theme.colorScheme.primary,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    Text(
-                      user['email']!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user['name']!,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontFamily: 'Kameron',
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        user['email']!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      user['role']!,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(
-                    user['role']!,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w600,
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      user['status']!,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: ['Intern', 'Applicant', 'Administrator'].contains(currentRole) ? currentRole : 'Intern',
+                decoration: const InputDecoration(
+                  labelText: 'Change Role / Promote User',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    user['status']!,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: statusColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      showGlassSnackbar(
-                        context,
-                        'Message sent to ${user['name']}',
-                        type: SnackbarType.success,
-                      );
-                    },
-                    child: const Text('Message'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      final uid = user['uid']!;
-                      Navigator.pop(ctx);
-                      if (uid.isNotEmpty) {
-                        try {
-                          await _repository.deleteUser(uid);
-                          if (mounted) {
-                            showGlassSnackbar(
-                              context,
-                              'User "${user['name']}" removed from database.',
-                              type: SnackbarType.warning,
-                            );
-                          }
-                        } catch (e) {
-                          if (mounted) {
-                            showGlassSnackbar(
-                              context,
-                              'Error removing user: $e',
-                              type: SnackbarType.error,
-                            );
-                          }
+                items: ['Applicant', 'Intern', 'Administrator']
+                    .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                    .toList(),
+                onChanged: (newRole) async {
+                  if (newRole != null && newRole != currentRole) {
+                    final uid = user['uid']!;
+                    if (uid.isNotEmpty) {
+                      try {
+                        await _repository.updateUser(uid, {'role': newRole});
+                        setSheetState(() => currentRole = newRole);
+                        if (mounted) {
+                          showGlassSnackbar(
+                            context,
+                            'Updated "${user['name']}" role to $newRole',
+                            type: SnackbarType.success,
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          showGlassSnackbar(
+                            context,
+                            'Error updating role: $e',
+                            type: SnackbarType.error,
+                          );
                         }
                       }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
+                    }
+                  }
+                },
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        showGlassSnackbar(
+                          context,
+                          'Message sent to ${user['name']}',
+                          type: SnackbarType.success,
+                        );
+                      },
+                      child: const Text('Message'),
                     ),
-                    child: const Text('Remove User'),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-          ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final uid = user['uid']!;
+                        Navigator.pop(ctx);
+                        if (uid.isNotEmpty) {
+                          try {
+                            await _repository.deleteUser(uid);
+                            if (mounted) {
+                              showGlassSnackbar(
+                                context,
+                                'User "${user['name']}" removed from database.',
+                                type: SnackbarType.warning,
+                              );
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              showGlassSnackbar(
+                                context,
+                                'Error removing user: $e',
+                                type: SnackbarType.error,
+                              );
+                            }
+                          }
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Remove User'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
         ),
       ),
     );
@@ -453,11 +505,8 @@ class _UsersScreenState extends State<UsersScreen> {
                       separatorBuilder: (_, _) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final user = results[index];
-                        final statusColor = user['status'] == 'Active'
-                            ? Colors.green
-                            : user['status'] == 'Inactive'
-                                ? Colors.red
-                                : Colors.orange;
+                        final isOnline = user['status'] == 'Online';
+                        final statusDotColor = isOnline ? const Color(0xFF34C759) : const Color(0xFF8E8E93);
 
                         return Dismissible(
                           key: Key('${user['uid']}_$index'),
@@ -518,17 +567,30 @@ class _UsersScreenState extends State<UsersScreen> {
                               ),
                               child: Row(
                                 children: [
-                                  CircleAvatar(
-                                    radius: 18,
-                                    backgroundColor: theme.colorScheme.primary
-                                        .withValues(alpha: 0.1),
-                                    child: Text(
-                                      user['name']!.isNotEmpty ? user['name']![0] : 'U',
-                                      style: theme.textTheme.titleSmall?.copyWith(
-                                        color: theme.colorScheme.primary,
-                                        fontWeight: FontWeight.w600,
+                                  Stack(
+                                    children: [
+                                      AvatarUtils.buildAvatarWidget(
+                                        user['avatar'],
+                                        radius: 20,
+                                        fallbackLetter: user['name'],
                                       ),
-                                    ),
+                                      Positioned(
+                                        right: 0,
+                                        bottom: 0,
+                                        child: Container(
+                                          width: 11,
+                                          height: 11,
+                                          decoration: BoxDecoration(
+                                            color: statusDotColor,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: theme.colorScheme.surface,
+                                              width: 2,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
@@ -553,23 +615,6 @@ class _UsersScreenState extends State<UsersScreen> {
                                       ],
                                     ),
                                   ),
-                                  Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      color: statusColor,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    user['status']!,
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color: statusColor,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
                                   Icon(
                                     Icons.chevron_right,
                                     size: 18,

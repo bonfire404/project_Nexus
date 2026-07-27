@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:nexus/core/services/app_initializer.dart';
+import 'package:nexus/features/auth/presentation/providers/auth_controller.dart';
 
 /// Full-screen splash with rotating logo and app branding. Auto-navigates after minimum animation period.
 class SplashScreen extends StatefulWidget {
+  final AuthController authController;
   final VoidCallback onInitialized;
 
-  const SplashScreen({super.key, required this.onInitialized});
+  const SplashScreen({
+    super.key,
+    required this.authController,
+    required this.onInitialized,
+  });
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -38,10 +44,11 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _initializeApp() async {
     final startTime = DateTime.now();
     await AppInitializer.initialize();
+    await widget.authController.restoreSession();
     
-    // Ensure smooth minimum rotation time (2.2s) so the logo rotation plays gracefully on startup
+    // Ensure crisp, optimized minimum rotation time (1.0s) for ultra-fast startup
     final elapsed = DateTime.now().difference(startTime);
-    const minSplashDuration = Duration(milliseconds: 2200);
+    const minSplashDuration = Duration(milliseconds: 1000);
     if (elapsed < minSplashDuration) {
       await Future.delayed(minSplashDuration - elapsed);
     }

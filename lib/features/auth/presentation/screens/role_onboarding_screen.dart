@@ -106,18 +106,20 @@ class _RoleOnboardingScreenState extends State<RoleOnboardingScreen> {
 
   Future<void> _completeOnboarding() async {
     final name = _nameController.text.trim();
-    if (name.isNotEmpty) {
-      widget.authController.updateDisplayName(name);
-      final user = widget.authController.currentUser;
-      if (user != null) {
-        try {
-          await _userRepo.updateUser(user.uid, {'name': name, 'avatar': _selectedAvatar});
-        } catch (_) {}
-      }
-    }
-
     final user = widget.authController.currentUser;
     if (user != null) {
+      final updateData = <String, dynamic>{
+        'role': role.label,
+        'avatar': _selectedAvatar,
+      };
+      if (name.isNotEmpty) {
+        widget.authController.updateDisplayName(name);
+        updateData['name'] = name;
+      }
+      try {
+        await _userRepo.updateUser(user.uid, updateData);
+      } catch (_) {}
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('onboarding_completed_${user.uid}', true);
       await prefs.setString('user_avatar_${user.uid}', _selectedAvatar);

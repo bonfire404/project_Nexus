@@ -122,4 +122,17 @@ class FirestoreService {
       }).toList();
     });
   }
+
+  /// Stream a single document by ID (real-time).
+  Stream<Map<String, dynamic>> streamDocument(
+    String collection,
+    String docId,
+  ) {
+    return _db.collection(collection).doc(docId).snapshots().map((snapshot) {
+      if (!snapshot.exists || snapshot.data() == null) return {};
+      final data = snapshot.data()!;
+      data['id'] = snapshot.id;
+      return data;
+    });
+  }
 }

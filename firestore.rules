@@ -2,21 +2,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions for role validation
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
     // 1. Users collection
     match /users/{userId} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
     }
 
     // 2. Programs collection (Public read for discovery, Write allowed)
     match /programs/{programId} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
     }
 
     // 3. Applications collection
@@ -24,23 +17,53 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // 4. Learning Resources collection
+    // 4. Messages collection (Direct Messaging & Messenger Chat)
+    match /messages/{messageId} {
+      allow read, write: if true;
+    }
+
+    // 5. Announcements collection (Admin System Broadcasts)
+    match /announcements/{announcementId} {
+      allow read, write: if true;
+    }
+
+    // 6. Admin Messages collection
+    match /admin_messages/{msgId} {
+      allow read, write: if true;
+    }
+
+    // 7. Audit Logs collection
+    match /audit_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    // 8. Learning Resources collection
     match /learning_resources/{resourceId} {
       allow read, write: if true;
     }
 
-    // 5. Tasks / Deliverables collection
+    // 9. Tasks / Deliverables collection
     match /tasks/{taskId} {
       allow read, write: if true;
     }
 
-    // 6. Meetings / Schedule collection
+    // 10. Meetings / Schedule collection
     match /meetings/{meetingId} {
       allow read, write: if true;
     }
 
-    // 7. Feedback collection
+    // 11. Feedback collection
     match /feedback/{feedbackId} {
+      allow read, write: if true;
+    }
+
+    // 12. Notifications collection
+    match /notifications/{notificationId} {
+      allow read, write: if true;
+    }
+
+    // 13. Typing Status collection
+    match /typing_status/{statusId} {
       allow read, write: if true;
     }
   }

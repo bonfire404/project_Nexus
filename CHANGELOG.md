@@ -1,48 +1,59 @@
 # Changelog
 
-## [1.1.0](https://github.com/bonfire404/project_Nexus/compare/v1.0.0...v1.1.0) (2026-07-20)
-
-
-### Features
-
-* implement core feature screens and infrastructure including programs, applications, and workspace modules ([60b7979](https://github.com/bonfire404/project_Nexus/commit/60b7979370bcea431757d492d42bd4cab612e2b7))
-
-## [1.0.0] - 2026-07-20 03:18 UTC
+## [1.4.0] - 2026-07-28
 
 *Published by:* ![GitHub](https://github.githubassets.com/favicons/favicon.png) **@bonfire404** & **@bizcodz**
 
 ### Added
-- Initial release of Excelerate Nexus.
-- Implemented core authentication.
-- Added profile and settings management.
-- Added dashboard and program discovery.
-- In-app changelog in settings reading from Markdown file.
-- Proper semantic versioning via GitHub Actions and release-please.
+- **Sleek 3D Glass Chat Input**: Floating 3D liquid glass message bar with a dedicated 3D send button.
+- **Animated Message Sender**: Loading icon inside the send button while your message is sending.
+- **Emoji Message Reactions**: Long-press any chat bubble to react with emojis like ❤️, 👍, 😂, and receive instant reaction banners.
+- **Minimalist Welcome Back Screen**: Clean welcome page showing your profile picture with an active green online status badge.
+- **Fingerprint & Face ID Lock**: Extra account security holding the welcome screen until unlocked with your phone's fingerprint or Face ID.
+- **Real-Time Account Security**: Keeps your account protected by safely updating your session if your assigned role changes while online.
+- **User Profile Status Dots**: User Management now displays user profile photos alongside live green (online) or grey (offline) status indicators.
 
 ### Changed
-- Minor UI improvements and bug fixes.
+- **Faster App Startup**: Optimized launch and load times so you can access your dashboard faster.
+- **Smart Session Saver**: Stays logged in safely so you don't have to choose your role every time you open the app.
+
+### Fixed
+- **Smoother Animations**: Improved transitions and page animations across the app.
+- **Notification Reliability**: Fixed messaging permissions and background notifications.
 
 ## [1.3.0] - 2026-07-25
 
 ### Added
-- **Role-Tailored Onboarding (`RoleOnboardingScreen`)**: Modern, interactive onboarding for `Applicant`, `Intern`, and `Administrator` with embedded live module previews.
-- **Native Hardware Biometrics**: Integrated `LocalAuthentication` fingerprint & Face ID prompts into Onboarding and Settings.
-- **Zero-Cost Custom Photo Upload Engine (`AvatarUtils`)**: Custom photo picker from gallery/camera encoded as Base64 stored directly in Cloud Firestore (`users/{uid}` under `avatar`), achieving **$0 Firebase Storage fees**.
-- **Sleek Default Person Avatar**: Integrated modern vector person icon (`HugeIcons.strokeRoundedUser`) as default avatar fallback.
-- **Real-Time Admin User Operations**: Stream subscription listener in Admin `UsersScreen` with `+ Add User` modal and `Swipe-to-Delete`.
+- **Personalized Onboarding**: Tailored welcome guides for Applicants, Interns, and Administrators with live previews.
+- **Fingerprint & Face ID Login**: Turn on quick biometric unlock in Onboarding or Settings.
+- **Custom Profile Photo Upload**: Pick and update your profile picture anytime from your phone's gallery or camera.
+- **Modern User Avatars**: Clean default profile icon for new accounts.
+- **Admin User Tools**: Add new users or remove accounts easily in User Management.
 
 ### Changed
-- **Skeletonizer Preloaders**: Replaced loading spinners in Profile Edit Bottom Sheet with `Skeletonizer` shimmer loading.
-- **Profile Name Binding**: Replaced static fallback text with live real-time sync from `authController.userDisplayName` and Firestore documents.
+- **Smoother Profile Edits**: Instant shimmer loading preview when editing your profile details.
+- **Live Name Updates**: Your profile name syncs everywhere automatically.
 
 ## [1.2.0] - 2026-07-23
 
 ### Added
-- **Mock API Integration**: Program data fetched from local JSON source (`assets/data/programs.json`).
-- **Validated Feedback Form**: New Feedback screen accessible from Settings with robust input validation.
-- **Repository Pattern**: Implemented `ProgramRepositoryImpl` for separation of concerns.
-- **Skeleton Loading**: Integrated `Skeletonizer` for smoother transitions on data-driven screens.
+- **Explore Programs**: Discover available internship programs and opportunities.
+- **In-App Feedback**: Share your thoughts and suggestions directly from Settings.
+- **Fast Loading Screens**: Smooth placeholders while loading your data.
 
 ### Fixed
-- Deprecated `withOpacity` calls migrated to `withValues`.
-- Improved router redirect logic for role selection.
+- Improved navigation and app responsiveness.
+
+## [1.1.0] - 2026-07-20
+
+### Features
+- Essential screens for programs, application submissions, and team collaboration workspace.
+
+## [1.0.0] - 2026-07-20
+
+*Published by:* ![GitHub](https://github.githubassets.com/favicons/favicon.png) **@bonfire404** & **@bizcodz**
+
+### Added
+- Official launch of Excelerate Nexus.
+- Account sign-in, profile management, and dashboard.
+- Customizable app settings.

@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nexus/app/theme_controller.dart';
 import 'package:nexus/features/auth/presentation/providers/auth_controller.dart';
 import 'package:nexus/features/auth/presentation/screens/splash_screen.dart';
+import 'package:nexus/features/auth/presentation/screens/welcome_resume_screen.dart';
 import 'package:nexus/features/auth/presentation/screens/role_selection_screen.dart';
 import 'package:nexus/features/auth/presentation/screens/login_screen.dart';
 import 'package:nexus/features/auth/presentation/screens/role_onboarding_screen.dart';
@@ -16,6 +17,7 @@ class NexusRouter {
 
   /// Route paths
   static const String splash = '/splash';
+  static const String welcomeResume = '/welcome-resume';
   static const String roleSelect = '/role-select';
   static const String login = '/login';
   static const String onboarding = '/onboarding';
@@ -47,15 +49,23 @@ class NexusRouter {
 
         // 2. If at splash but it's done, move to next logical screen
         if (currentPath == splash) {
-          if (isAuthenticated) return home;
+          if (isAuthenticated && hasRole) return welcomeResume;
+          if (isAuthenticated) return roleSelect;
           if (hasRole) return login;
           return roleSelect;
         }
 
-        // 3. Authenticated users should be at home (or deeper)
+        // 3. Authenticated users
         if (isAuthenticated) {
-          if (currentPath == login || currentPath == roleSelect) {
+          if (!hasRole) {
+            return currentPath == roleSelect ? null : roleSelect;
+          }
+          final role = authController.selectedRole;
+          if (role != null && !role.canAccessRoute(currentPath)) {
             return home;
+          }
+          if (currentPath == login || currentPath == roleSelect) {
+            return welcomeResume;
           }
           return null;
         }
@@ -76,9 +86,19 @@ class NexusRouter {
         GoRoute(
           path: splash,
           builder: (context, state) => SplashScreen(
+            authController: authController,
             onInitialized: () {
               splashDone = true;
               authController.signalChange();
+            },
+          ),
+        ),
+        GoRoute(
+          path: welcomeResume,
+          builder: (context, state) => WelcomeResumeScreen(
+            authController: authController,
+            onProceed: () {
+              context.go(home);
             },
           ),
         ),

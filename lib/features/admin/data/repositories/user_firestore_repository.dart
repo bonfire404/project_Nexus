@@ -5,9 +5,34 @@ class UserFirestoreRepository {
   final FirestoreService _firestore = FirestoreService();
   static const String _collection = 'users';
 
-  /// Get all users.
+  /// Get all users (deduplicated by normalized email and name).
   Future<List<Map<String, dynamic>>> getAllUsers() async {
-    return await _firestore.getCollection(_collection);
+    final rawUsers = await _firestore.getCollection(_collection);
+    final Map<String, Map<String, dynamic>> uniqueMap = {};
+
+    for (final u in rawUsers) {
+      final email = (u['email'] as String? ?? '').trim().toLowerCase();
+      final name = (u['name'] as String? ?? '').trim().toLowerCase();
+      final id = (u['id'] as String? ?? u['uid'] as String? ?? '').trim();
+
+      if (email.isEmpty && name.isEmpty && id.isEmpty) continue;
+
+      final key = email.isNotEmpty ? 'email_$email' : (name.isNotEmpty ? 'name_$name' : 'id_$id');
+
+      if (!uniqueMap.containsKey(key)) {
+        uniqueMap[key] = u;
+      } else {
+        final existing = uniqueMap[key]!;
+        final existingHasAvatar = (existing['avatar'] as String? ?? '').isNotEmpty;
+        final newHasAvatar = (u['avatar'] as String? ?? '').isNotEmpty;
+
+        if (!existingHasAvatar && newHasAvatar) {
+          uniqueMap[key] = u;
+        }
+      }
+    }
+
+    return uniqueMap.values.toList();
   }
 
   /// Get users by role.
@@ -33,6 +58,11 @@ class UserFirestoreRepository {
       'role': role,
       'status': status,
     });
+    await logAuditAction(
+      action: 'USER_CREATED',
+      targetUid: uid,
+      details: {'name': name, 'email': email, 'role': role},
+    );
   }
 
   /// Get a single user by UID.
@@ -48,15 +78,45 @@ class UserFirestoreRepository {
   /// Update user profile fields.
   Future<void> updateUser(String uid, Map<String, dynamic> data) async {
     await _firestore.updateDocument(_collection, uid, data);
+    await logAuditAction(
+      action: 'USER_UPDATED',
+      targetUid: uid,
+      details: data,
+    );
   }
 
   /// Delete user document by UID.
   Future<void> deleteUser(String uid) async {
     await _firestore.deleteDocument(_collection, uid);
+    await logAuditAction(
+      action: 'USER_DELETED',
+      targetUid: uid,
+    );
+  }
+
+  /// Record admin audit log entry.
+  Future<void> logAuditAction({
+    required String action,
+    required String targetUid,
+    Map<String, dynamic>? details,
+  }) async {
+    try {
+      await _firestore.addDocument('audit_logs', {
+        'action': action,
+        'targetUid': targetUid,
+        'details': details ?? {},
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+    } catch (_) {}
   }
 
   /// Stream all users (real-time).
   Stream<List<Map<String, dynamic>>> streamAllUsers() {
     return _firestore.streamCollection(_collection);
+  }
+
+  /// Stream a single user profile document by UID (real-time).
+  Stream<Map<String, dynamic>?> streamUserProfile(String uid) {
+    return _firestore.streamDocument(_collection, uid);
   }
 }
