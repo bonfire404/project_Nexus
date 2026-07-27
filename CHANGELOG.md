@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.5.0](https://github.com/bonfire404/project_Nexus/compare/nexus-v1.4.0...nexus-v1.5.0) (2026-07-27)
+
+
+### Features
+
+* implement application scaffold with modular feature screens and unified settings UI ([a0593e7](https://github.com/bonfire404/project_Nexus/commit/a0593e711ade32911153e6f167a4684375baa378))
+* implement core feature screens and infrastructure including programs, applications, and workspace modules ([60b7979](https://github.com/bonfire404/project_Nexus/commit/60b7979370bcea431757d492d42bd4cab612e2b7))
+* implement UI prototype for Week 2 deliverable ([c89f8d4](https://github.com/bonfire404/project_Nexus/commit/c89f8d47dea6a34e912e480a4fa536c2f983de1d))
+* implement UI prototype for Week 2 deliverable ([#1](https://github.com/bonfire404/project_Nexus/issues/1)) ([380cae5](https://github.com/bonfire404/project_Nexus/commit/380cae5a341cf9b307fed75d61d740e41c1d68e3))
+* initialize Firebase, environment variables, and app dependencies in main entry point ([2757b1e](https://github.com/bonfire404/project_Nexus/commit/2757b1e5a4cb58fbb7d8b24bb17990e92612d541))
+* initialize project structure with authentication, routing, asset assets, and custom fonts ([2e94495](https://github.com/bonfire404/project_Nexus/commit/2e94495f695899649b23a3d5b65c202f9cccddaf))
+* role onboarding, biometrics, custom photo upload, real-time sync, and skeletonizer preloaders ([169fa44](https://github.com/bonfire404/project_Nexus/commit/169fa4484c6bd28e53010042af61caad94539999))
+* setup environment configuration via flutter_dotenv and .env.example ([32e91f0](https://github.com/bonfire404/project_Nexus/commit/32e91f00d23c3e1d70e7d335a8f6be4049499f4d))
+* **v1.4.0:** add 3d liquid glass input, biometric holding, and real-time security auto-logout ([8915e13](https://github.com/bonfire404/project_Nexus/commit/8915e1345195e24ac08dcf8e19063c399cd35cee))
+* Week 3 - API-connected functional app with feedback form and documentation ([9229134](https://github.com/bonfire404/project_Nexus/commit/92291347119ba33a53986b0e1e16db22869519e4))
+
+
+### Bug Fixes
+
+* **ci:** add fallback .env asset file step and bump version to 1.4.0+5 ([7f2dc23](https://github.com/bonfire404/project_Nexus/commit/7f2dc239bc6d85f80ce7a4850674837526215b05))
+* **ci:** update release-please action to googleapis/release-please-action@v4 ([9ec578e](https://github.com/bonfire404/project_Nexus/commit/9ec578e676981915707d555d6337b384c3f8f398))
+
 ## [1.2.0](https://github.com/bonfire404/project_Nexus/compare/v1.1.0...v1.2.0) (2026-07-27)
 
 
