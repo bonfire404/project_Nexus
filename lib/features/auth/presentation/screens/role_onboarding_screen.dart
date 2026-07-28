@@ -7,6 +7,7 @@ import 'package:nexus/core/utils/avatar_utils.dart';
 import 'package:nexus/core/utils/snackbar_utils.dart';
 import 'package:nexus/features/admin/data/repositories/user_firestore_repository.dart';
 import 'package:nexus/features/auth/presentation/providers/auth_controller.dart';
+import 'package:nexus/core/services/notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Role-tailored, minimalist onboarding screen with real biometric prompt & embedded live previews for ALL roles.
@@ -28,6 +29,7 @@ class _RoleOnboardingScreenState extends State<RoleOnboardingScreen> {
   int _currentPage = 0;
   bool _enableBiometrics = false;
   bool _isAuthenticatingBiometrics = false;
+  bool _enableNotifications = true;
   String _selectedAvatar = 'preset_1';
 
   UserRole get role => widget.authController.selectedRole ?? UserRole.applicant;
@@ -36,6 +38,10 @@ class _RoleOnboardingScreenState extends State<RoleOnboardingScreen> {
   void initState() {
     super.initState();
     _nameController.text = widget.authController.userDisplayName;
+    final currentAvatar = widget.authController.avatarUrl;
+    if (currentAvatar != null && currentAvatar.isNotEmpty) {
+      _selectedAvatar = currentAvatar;
+    }
   }
 
   @override
@@ -104,13 +110,25 @@ class _RoleOnboardingScreenState extends State<RoleOnboardingScreen> {
     }
   }
 
+  Future<void> _toggleNotifications(bool value) async {
+    final uid = widget.authController.currentUser?.uid;
+    await NotificationService().initialize(userId: uid);
+    setState(() => _enableNotifications = true);
+  }
+
   Future<void> _completeOnboarding() async {
     final name = _nameController.text.trim();
     final user = widget.authController.currentUser;
     if (user != null) {
+      final existingAvatar = widget.authController.avatarUrl;
+      final avatarToSave = (existingAvatar != null && existingAvatar.isNotEmpty && _selectedAvatar == 'preset_1')
+          ? existingAvatar
+          : _selectedAvatar;
+
       final updateData = <String, dynamic>{
         'role': role.label,
-        'avatar': _selectedAvatar,
+        'avatar': avatarToSave,
+        'photoUrl': avatarToSave,
       };
       if (name.isNotEmpty) {
         widget.authController.updateDisplayName(name);
@@ -122,7 +140,11 @@ class _RoleOnboardingScreenState extends State<RoleOnboardingScreen> {
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('onboarding_completed_${user.uid}', true);
-      await prefs.setString('user_avatar_${user.uid}', _selectedAvatar);
+      await widget.authController.updateAvatar(avatarToSave);
+      await prefs.setBool('chat_notifications_enabled', _enableNotifications);
+      if (_enableNotifications) {
+        await NotificationService().initialize(userId: user.uid);
+      }
       if (_enableBiometrics) {
         await prefs.setBool('biometrics_enabled_${user.uid}', true);
       }
@@ -180,11 +202,12 @@ class _RoleOnboardingScreenState extends State<RoleOnboardingScreen> {
 
     final commonBiometricSlide = _OnboardingSlide(
       icon: HugeIcons.strokeRoundedFingerPrint,
-      title: 'Biometric Unlock',
-      subtitle: 'Pair fingerprint or face recognition for instant login.',
+      title: 'Security & Permissions',
+      subtitle: 'Setup biometric unlock and enable push notifications for real-time alerts.',
       child: Column(
         children: [
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          // Biometrics Card
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -233,6 +256,49 @@ class _RoleOnboardingScreenState extends State<RoleOnboardingScreen> {
                     value: _enableBiometrics,
                     onChanged: _toggleBiometrics,
                   ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Push Notification Permission Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                const HugeIcon(
+                  icon: HugeIcons.strokeRoundedNotification01,
+                  color: Colors.amber,
+                  size: 24,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Push Notifications',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Receive real-time chat messages and workspace alerts',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: _enableNotifications,
+                  onChanged: _toggleNotifications,
+                ),
               ],
             ),
           ),

@@ -51,13 +51,22 @@ class UserFirestoreRepository {
     required String email,
     required String role,
     String status = 'Active',
+    String? avatar,
   }) async {
-    await _firestore.setDocument(_collection, uid, {
+    final existingDoc = await _firestore.getDocument(_collection, uid);
+    final existingAvatar = existingDoc?['avatar'] as String? ?? existingDoc?['photoUrl'] as String? ?? avatar;
+
+    final docData = <String, dynamic>{
       'name': name,
       'email': email,
       'role': role,
       'status': status,
-    });
+    };
+    if (existingAvatar != null && existingAvatar.isNotEmpty) {
+      docData['avatar'] = existingAvatar;
+    }
+
+    await _firestore.setDocument(_collection, uid, docData);
     await logAuditAction(
       action: 'USER_CREATED',
       targetUid: uid,

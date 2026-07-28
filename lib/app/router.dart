@@ -112,15 +112,13 @@ class NexusRouter {
         ),
         GoRoute(
           path: login,
-          builder: (context, state) => LoginScreen(
-            authController: authController,
-          ),
+          builder: (context, state) =>
+              LoginScreen(authController: authController),
         ),
         GoRoute(
           path: onboarding,
-          builder: (context, state) => RoleOnboardingScreen(
-            authController: authController,
-          ),
+          builder: (context, state) =>
+              RoleOnboardingScreen(authController: authController),
         ),
         GoRoute(
           path: home,
@@ -131,9 +129,8 @@ class NexusRouter {
         ),
         GoRoute(
           path: programs,
-          builder: (context, state) => ProgramListingScreen(
-            authController: authController,
-          ),
+          builder: (context, state) =>
+              ProgramListingScreen(authController: authController),
         ),
         GoRoute(
           path: programDetails,
@@ -144,9 +141,8 @@ class NexusRouter {
         ),
         GoRoute(
           path: feedback,
-          builder: (context, state) => FeedbackScreen(
-            authController: authController,
-          ),
+          builder: (context, state) =>
+              FeedbackScreen(authController: authController),
         ),
       ],
     );

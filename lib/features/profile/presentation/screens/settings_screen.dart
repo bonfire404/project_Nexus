@@ -1173,7 +1173,7 @@ class _ProfileSheetContentState extends State<_ProfileSheetContent> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_name_${user.uid}', newName);
       await prefs.setString('user_email_${user.uid}', newEmail);
-      await prefs.setString('user_avatar_${user.uid}', _selectedAvatar);
+      await widget.authController.updateAvatar(_selectedAvatar);
       try {
         final repo = UserFirestoreRepository();
         await repo.updateUser(user.uid, {

@@ -47,6 +47,23 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateAvatar(String newAvatar) async {
+    _avatarUrl = newAvatar;
+    notifyListeners();
+
+    final user = currentUser;
+    if (user != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_avatar_${user.uid}', newAvatar);
+      try {
+        await _userRepo.updateUser(user.uid, {
+          'avatar': newAvatar,
+          'photoUrl': newAvatar,
+        });
+      } catch (_) {}
+    }
+  }
+
   static const String _roleKey = 'nexus_saved_user_role';
   static const String _nameKey = 'nexus_saved_display_name';
 
@@ -193,11 +210,19 @@ class AuthController extends ChangeNotifier {
         'lastSeen': DateTime.now().toIso8601String(),
       };
 
+      final prefs = await SharedPreferences.getInstance();
+      final localSavedAvatar = prefs.getString('user_avatar_${user.uid}');
+
       if (profile != null) {
         final docAvatar = profile['avatar'] as String? ?? profile['photoUrl'] as String?;
         if (docAvatar != null && docAvatar.isNotEmpty) {
           _avatarUrl = docAvatar;
+          await prefs.setString('user_avatar_${user.uid}', docAvatar);
+        } else if (localSavedAvatar != null && localSavedAvatar.isNotEmpty) {
+          _avatarUrl = localSavedAvatar;
+          updateData['avatar'] = localSavedAvatar;
         }
+
         if (profile.containsKey('name')) {
           final savedName = profile['name'] as String?;
           if (savedName != null && savedName.isNotEmpty) {
@@ -236,10 +261,10 @@ class AuthController extends ChangeNotifier {
           email: email,
           role: roleLabel,
           status: 'Active',
+          avatar: _avatarUrl ?? localSavedAvatar,
         );
       }
 
-      final prefs = await SharedPreferences.getInstance();
       if (_selectedRole != null) {
         await prefs.setString(_roleKey, _selectedRole!.label);
       }

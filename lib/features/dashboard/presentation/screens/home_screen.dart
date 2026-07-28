@@ -25,6 +25,7 @@ import 'package:skeletonizer/skeletonizer.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nexus/core/services/notification_service.dart';
+import 'package:nexus/core/services/presence_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final AuthController authController;
@@ -46,7 +47,13 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    NotificationService().initialize();
+    final uid = widget.authController.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) {
+      NotificationService().initialize(userId: uid);
+      PresenceService().initialize(uid);
+    } else {
+      NotificationService().initialize();
+    }
   }
 
   AuthController get _auth => widget.authController;
@@ -202,15 +209,22 @@ class _HomeScreenState extends State<HomeScreen> {
                       .snapshots()
                       .map((snap) {
                     final uid = widget.authController.currentUser?.uid ?? '';
-                    final email = widget.authController.userEmail.toLowerCase();
+                    final email = widget.authController.userEmail.trim().toLowerCase();
+                    if (uid.isEmpty) return 0;
+
                     return snap.docs.where((doc) {
                       final data = doc.data();
-                      final recipientId = data['recipientId'] as String? ?? '';
-                      final recipientEmail = (data['recipientEmail'] as String? ?? '').toLowerCase();
-                      final isRead = data['isRead'] as bool? ?? true;
+                      final senderId = (data['senderId'] as String? ?? '').trim();
+                      final senderEmail = (data['senderEmail'] as String? ?? '').trim().toLowerCase();
+                      final recipientId = (data['recipientId'] as String? ?? '').trim();
+                      final recipientEmail = (data['recipientEmail'] as String? ?? '').trim().toLowerCase();
+                      final isRead = data['isRead'] as bool? ?? false;
+                      final isUnsent = data['isUnsent'] as bool? ?? false;
 
-                      final isForMe = recipientId == uid || (email.isNotEmpty && recipientEmail == email);
-                      return isForMe && !isRead;
+                      final isFromOther = senderId.isNotEmpty ? (senderId != uid) : (senderEmail.isNotEmpty && senderEmail != email);
+                      final isForMe = (recipientId.isNotEmpty && recipientId == uid) || (email.isNotEmpty && recipientEmail == email);
+
+                      return isForMe && isFromOther && !isRead && !isUnsent;
                     }).length;
                   }),
                   builder: (context, snapshot) {
@@ -405,11 +419,32 @@ class _HomeDashboardState extends State<_HomeDashboard> {
     return name[0].toUpperCase();
   }
 
+  String get effectiveUserAvatar {
+    final authAvatar = widget.authController.avatarUrl;
+    if (authAvatar != null && authAvatar.isNotEmpty) {
+      return authAvatar;
+    }
+    return _userAvatar;
+  }
+
   @override
   void initState() {
     super.initState();
+    widget.authController.addListener(_onAuthChanged);
     _checkRoleOnboarding();
     _loadDashboardData();
+  }
+
+  @override
+  void dispose() {
+    widget.authController.removeListener(_onAuthChanged);
+    super.dispose();
+  }
+
+  void _onAuthChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _checkRoleOnboarding() async {
@@ -642,7 +677,7 @@ class _HomeDashboardState extends State<_HomeDashboard> {
           ),
         ),
         AvatarUtils.buildAvatarWidget(
-          _userAvatar,
+          effectiveUserAvatar,
           radius: 24,
           fallbackLetter: userDisplayName,
         ),
@@ -706,39 +741,75 @@ class _HomeDashboardState extends State<_HomeDashboard> {
   }
 
   Widget _buildAdminSparklineHUD(BuildContext context) {
-    if (_liveStats.isEmpty) return const SizedBox.shrink();
-    return Container(
-      height: 160,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.15),
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            top: 40,
-            child: CustomPaint(
-              painter: _SparklinePainter(color: theme.colorScheme.primary),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _userRepo.streamAllUsers(),
+      builder: (context, snapshot) {
+        final users = snapshot.data ?? [];
+        final totalUsersCount = users.isNotEmpty ? users.length : (_liveStats.isNotEmpty ? int.tryParse(_liveStats[0]['value'] as String? ?? '0') ?? 0 : 0);
+        final activeUsersCount = users.where((u) {
+          final status = (u['status'] as String? ?? '').trim().toLowerCase();
+          final lastSeenStr = u['lastSeen'] as String? ?? '';
+          if (status == 'active' || status == 'online') return true;
+          if (lastSeenStr.isNotEmpty) {
+            final ls = DateTime.tryParse(lastSeenStr);
+            if (ls != null && DateTime.now().difference(ls).inMinutes <= 3) {
+              return true;
+            }
+          }
+          return false;
+        }).length;
+
+        final programsCount = _liveStats.length > 1 ? _liveStats[1]['value'] as String? ?? '0' : '0';
+
+        final updatedStats = [
+          {
+            'label': 'Total Users',
+            'value': '$totalUsersCount',
+            'icon': HugeIcons.strokeRoundedUserGroup,
+          },
+          {
+            'label': 'Programs',
+            'value': programsCount,
+            'icon': HugeIcons.strokeRoundedBriefcase02,
+          },
+          {
+            'label': 'System Active',
+            'value': '$activeUsersCount',
+            'icon': HugeIcons.strokeRoundedTime02,
+          },
+        ];
+
+        return Container(
+          height: 160,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: theme.colorScheme.outline.withValues(alpha: 0.15),
             ),
           ),
-          Positioned.fill(
-            child: Row(
-              children: [
-                if (_liveStats.isNotEmpty)
-                  Expanded(child: _UnifiedDataSegment(stat: _liveStats[0], theme: theme, isTransparent: true)),
-                if (_liveStats.length > 1)
-                  Expanded(child: _UnifiedDataSegment(stat: _liveStats[1], theme: theme, isTransparent: true)),
-                if (_liveStats.length > 2)
-                  Expanded(child: _UnifiedDataSegment(stat: _liveStats[2], theme: theme, isTransparent: true)),
-              ],
-            ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                top: 40,
+                child: CustomPaint(
+                  painter: _SparklinePainter(color: theme.colorScheme.primary),
+                ),
+              ),
+              Positioned.fill(
+                child: Row(
+                  children: [
+                    Expanded(child: _UnifiedDataSegment(stat: updatedStats[0], theme: theme, isTransparent: true)),
+                    Expanded(child: _UnifiedDataSegment(stat: updatedStats[1], theme: theme, isTransparent: true)),
+                    Expanded(child: _UnifiedDataSegment(stat: updatedStats[2], theme: theme, isTransparent: true)),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1436,16 +1507,42 @@ class _AdminHero extends StatelessWidget {
                   Navigator.pop(context);
                   try {
                     final firestore = FirestoreService();
+                    final timestamp = DateTime.now().toIso8601String();
                     await firestore.addDocument('announcements', {
                       'title': title,
                       'content': msg,
                       'target': targetAudience,
-                      'timestamp': DateTime.now().toIso8601String(),
+                      'timestamp': timestamp,
                     });
+
+                    final broadCastText = title.isNotEmpty ? '$title\n\n$msg' : msg;
+                    await firestore.addDocument('messages', {
+                      'senderId': 'nexus_announcement',
+                      'senderName': 'Nexus Announcement',
+                      'senderEmail': 'announcement@nexus.com',
+                      'recipientId': 'general',
+                      'recipientName': 'Nexus Announcement',
+                      'recipientEmail': 'announcement@nexus.com',
+                      'targetAudience': targetAudience,
+                      'body': broadCastText,
+                      'content': broadCastText,
+                      'avatar': 'assets/icons/app_logo.png',
+                      'timestamp': timestamp,
+                      'isBroadcast': true,
+                      'isGeneral': true,
+                      'isRead': false,
+                      'reactions': {},
+                    });
+
+                    NotificationService().showChatPushNotification(
+                      senderName: 'Nexus Announcement 📢',
+                      messageText: title.isNotEmpty ? title : msg,
+                    );
+
                     if (context.mounted) {
                       showGlassSnackbar(
                         context,
-                        'Broadcast sent to $targetAudience!',
+                        'Announcement broadcast to Nexus Announcement!',
                         type: SnackbarType.success,
                       );
                     }

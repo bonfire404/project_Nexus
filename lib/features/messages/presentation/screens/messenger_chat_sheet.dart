@@ -52,6 +52,12 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
   String? _editingDocId;
   String? _editingOriginalText;
 
+  // Reply message state
+  Map<String, dynamic>? _replyingToMessage;
+
+  // Reaction lock set to prevent spam reaction taps
+  final Set<String> _processingReactionDocIds = {};
+
   // Context menu state (scoped to chat UI)
   Map<String, dynamic>? _contextMenuMsg;
   bool _contextMenuIsMe = false;
@@ -122,10 +128,43 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
     }
   }
 
+  final Set<String> _notifiedMessageIds = {};
+
   void _subscribeToAllMessages() {
     _allMessagesSubscription?.cancel();
     _allMessagesSubscription = _firestore.streamCollection('messages').listen((msgs) {
       if (mounted) {
+        final myId = currentUserId;
+        final myEmail = currentUserEmail.toLowerCase();
+
+        for (final m in msgs) {
+          final mId = m['id'] as String? ?? '';
+          final rId = m['recipientId'] as String? ?? '';
+          final rEmail = (m['recipientEmail'] as String? ?? '').toLowerCase();
+          final sId = m['senderId'] as String? ?? '';
+          final sEmail = (m['senderEmail'] as String? ?? '').toLowerCase();
+          final isRead = m['isRead'] as bool? ?? false;
+          final tsStr = m['timestamp'] as String? ?? '';
+          final senderName = m['senderName'] as String? ?? 'New Message';
+          final body = m['body'] as String? ?? m['content'] as String? ?? '';
+
+          final isForMe = (myId.isNotEmpty && rId == myId) || (myEmail.isNotEmpty && rEmail == myEmail);
+          final isFromOther = (myId.isEmpty || sId != myId) && (myEmail.isEmpty || sEmail != myEmail);
+
+          if (isForMe && isFromOther && !isRead && mId.isNotEmpty && !_notifiedMessageIds.contains(mId)) {
+            final ts = DateTime.tryParse(tsStr);
+            if (ts != null && DateTime.now().difference(ts).inSeconds <= 15) {
+              _notifiedMessageIds.add(mId);
+              NotificationService().showChatPushNotification(
+                senderName: senderName,
+                messageText: body,
+              );
+            }
+          }
+        }
+
+        _markMessagesAsRead(msgs);
+
         setState(() {
           _allMessages = msgs;
         });
@@ -143,6 +182,24 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
       final sEmail = (m['senderEmail'] as String? ?? '').toLowerCase();
       final rId = m['recipientId'] as String? ?? '';
       final rEmail = (m['recipientEmail'] as String? ?? '').toLowerCase();
+
+      if (contactId == 'excelerate_general') {
+        final isGen = m['isGeneral'] as bool? ?? false;
+        final isBroad = m['isBroadcast'] as bool? ?? false;
+        final target = m['targetAudience'] as String? ?? m['target'] as String? ?? 'All Users';
+        final userRoleEnum = widget.authController.selectedRole;
+        final userRoleName = userRoleEnum != null ? userRoleEnum.name.toLowerCase() : '';
+
+        bool matchesTarget = true;
+        if (target == 'Interns') {
+          matchesTarget = userRoleName == 'intern' || userRoleName == 'administrator';
+        } else if (target == 'Applicants') {
+          matchesTarget = userRoleName == 'applicant' || userRoleName == 'administrator';
+        }
+
+        final isChannelMsg = rId == 'general' || rId == 'all' || sId == 'excelerate_general' || isGen || isBroad;
+        return isChannelMsg && matchesTarget;
+      }
 
       final isMeSender = (myId.isNotEmpty && sId == myId) || (myEmail.isNotEmpty && sEmail == myEmail);
       final isMeRecipient = (myId.isNotEmpty && rId == myId) || (myEmail.isNotEmpty && rEmail == myEmail);
@@ -212,17 +269,44 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
       final otherUsers = allUsers.where((u) {
         final email = (u['email'] as String? ?? '').toLowerCase();
         final uid = u['id'] as String? ?? u['uid'] as String? ?? '';
-        return email != currentUserEmail.toLowerCase() && uid != currentUserId;
+        return email != currentUserEmail.toLowerCase() && uid != currentUserId && uid != 'excelerate_general';
       }).toList();
+
+      final generalChannel = <String, dynamic>{
+        'id': 'nexus_announcement',
+        'uid': 'nexus_announcement',
+        'name': 'Nexus Announcement',
+        'email': 'announcement@nexus.com',
+        'role': 'Official Channel',
+        'avatar': 'assets/icons/app_logo.png',
+        'isOfficialChannel': true,
+        'status': 'Active',
+      };
 
       if (mounted) {
         setState(() {
-          _contacts = otherUsers;
+          _contacts = [generalChannel, ...otherUsers];
           _isLoadingContacts = false;
         });
       }
     } catch (_) {
       if (mounted) setState(() => _isLoadingContacts = false);
+    }
+  }
+
+  Future<void> _handleRefresh() async {
+    if (mounted) {
+      setState(() {
+        _isLoadingContacts = true;
+      });
+    }
+    await _loadContacts();
+    _subscribeToAllMessages();
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (mounted) {
+      setState(() {
+        _isLoadingContacts = false;
+      });
     }
   }
 
@@ -245,10 +329,35 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
     final myEmail = currentUserEmail.toLowerCase();
     final myName = (widget.authController.userDisplayName).toLowerCase();
 
+    final isOfficial = targetId == 'excelerate_general' ||
+        targetEmail == 'general@excelerate.com' ||
+        (_selectedContact!['isOfficialChannel'] as bool? ?? false);
+
     _chatSubscription = _firestore.streamCollection('messages').listen(
       (allMsgs) {
         if (mounted) {
           final chatMsgs = allMsgs.where((m) {
+            if (isOfficial) {
+              final rId = (m['recipientId'] as String? ?? '').toLowerCase();
+              final sId = (m['senderId'] as String? ?? '').toLowerCase();
+              final isGen = m['isGeneral'] as bool? ?? false;
+              final isBroad = m['isBroadcast'] as bool? ?? false;
+              final target = m['targetAudience'] as String? ?? m['target'] as String? ?? 'All Users';
+
+              final userRoleEnum = widget.authController.selectedRole;
+              final userRoleName = userRoleEnum != null ? userRoleEnum.name.toLowerCase() : '';
+
+              bool matchesTarget = true;
+              if (target == 'Interns') {
+                matchesTarget = userRoleName == 'intern' || userRoleName == 'administrator';
+              } else if (target == 'Applicants') {
+                matchesTarget = userRoleName == 'applicant' || userRoleName == 'administrator';
+              }
+
+              final isChannelMsg = rId == 'general' || rId == 'all' || sId == 'excelerate_general' || isGen || isBroad;
+              return isChannelMsg && matchesTarget;
+            }
+
             final sId = (m['senderId'] as String? ?? '').toLowerCase();
             final sEmail = (m['senderEmail'] as String? ?? '').toLowerCase();
             final sName = (m['senderName'] as String? ?? '').toLowerCase();
@@ -273,8 +382,8 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
                 (targetEmail.isNotEmpty && (rEmail == targetEmail || rId == targetEmail)) ||
                 (targetName.isNotEmpty && rName.isNotEmpty && rName == targetName);
 
-            final fromMeToTarget = isSenderMe && (isRecipientTarget || rId == 'all');
-            final fromTargetToMe = isSenderTarget && (isRecipientMe || rId == 'all');
+            final fromMeToTarget = isSenderMe && isRecipientTarget;
+            final fromTargetToMe = isSenderTarget && isRecipientMe;
 
             return fromMeToTarget || fromTargetToMe;
           }).toList();
@@ -440,18 +549,27 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
   }
 
   /// Check if a message can be edited/unsent.
-  /// Blocked if the message has been read or the recipient has replied after it.
+  /// Allowed within 60 seconds of sending even if read, as long as the recipient has not replied after it.
   bool _canEditOrUnsend(Map<String, dynamic> msg) {
-    final isRead = msg['isRead'] as bool? ?? false;
-    if (isRead) return false;
+    final isUnsent = msg['isUnsent'] as bool? ?? false;
+    if (isUnsent) return false;
 
-    // Check if there's a reply from the other user after this message
     final msgTimestamp = msg['timestamp'] as String? ?? '';
     final senderId = msg['senderId'] as String? ?? '';
+
+    // Check 60-second window
+    final ts = DateTime.tryParse(msgTimestamp);
+    if (ts != null) {
+      final elapsedSeconds = DateTime.now().difference(ts).inSeconds;
+      if (elapsedSeconds > 60) {
+        return false;
+      }
+    }
+
+    // Check if there's a reply from the other user after this message
     for (final m in _messages) {
       final mSenderId = m['senderId'] as String? ?? '';
       final mTs = m['timestamp'] as String? ?? '';
-      // If a different sender sent a message after ours, it means they replied
       if (mSenderId != senderId && mTs.compareTo(msgTimestamp) > 0) {
         return false;
       }
@@ -476,44 +594,50 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
 
   Future<void> _reactToMessage(String docId, String emoji) async {
     _dismissContextMenu();
-    if (docId.isEmpty) return;
+    if (docId.isEmpty || _processingReactionDocIds.contains(docId)) return;
+    _processingReactionDocIds.add(docId);
+
     try {
       // Read current reactions
       final doc = await _firestore.getDocument('messages', docId);
       final reactions = Map<String, dynamic>.from(doc?['reactions'] as Map? ?? {});
-      final List<String> users = List<String>.from(reactions[emoji] as List? ?? []);
 
-      final bool isAdding = !users.contains(currentUserId);
+      // Check if user already reacted with this specific emoji
+      final currentUsersForEmoji = List<String>.from(reactions[emoji] as List? ?? []);
+      final bool alreadyHasThisEmoji = currentUsersForEmoji.contains(currentUserId);
 
-      if (!isAdding) {
-        users.remove(currentUserId); // toggle off
+      // Remove current user's reaction from ALL existing emojis first (Instagram single-emoji policy)
+      reactions.forEach((eKey, uList) {
+        final list = List<String>.from(uList as List? ?? []);
+        list.remove(currentUserId);
+        reactions[eKey] = list;
+      });
+
+      bool isAddingNewReaction = false;
+
+      if (alreadyHasThisEmoji) {
+        // Toggled off their existing reaction for this emoji
+        isAddingNewReaction = false;
       } else {
-        users.add(currentUserId); // toggle on
+        // Toggle on new emoji: Add current user to this emoji
+        final updatedList = List<String>.from(reactions[emoji] as List? ?? []);
+        updatedList.add(currentUserId);
+        reactions[emoji] = updatedList;
+        isAddingNewReaction = true;
       }
 
-      if (users.isEmpty) {
-        reactions.remove(emoji);
-      } else {
-        reactions[emoji] = users;
-      }
+      // Clean up empty emoji lists
+      reactions.removeWhere((eKey, uList) => (uList as List).isEmpty);
 
       await _firestore.updateDocument('messages', docId, {'reactions': reactions});
 
-      // If adding a new reaction, trigger push notification & store notification record
-      if (isAdding && doc != null) {
+      // If adding a new reaction, create a persistent notification document for the recipient
+      if (isAddingNewReaction && doc != null) {
         try {
           final reactorName = widget.authController.userDisplayName;
           final msgBody = doc['body'] as String? ?? doc['content'] as String? ?? '';
           final snippet = msgBody.length > 25 ? '${msgBody.substring(0, 25)}...' : msgBody;
-          final notificationText = 'Reacted $emoji to "$snippet"';
 
-          // 1. Local & System Push Notification
-          NotificationService().showChatPushNotification(
-            senderName: reactorName,
-            messageText: notificationText,
-          );
-
-          // 2. Persistent Firestore Notification for Recipient
           final msgSenderId = doc['senderId'] as String? ?? '';
           final targetNotifyUserId = (msgSenderId.isNotEmpty && msgSenderId != currentUserId)
               ? msgSenderId
@@ -535,8 +659,10 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
       }
     } catch (e) {
       if (mounted) {
-        showGlassSnackbar(context, 'Error reacting: $e', type: SnackbarType.error);
+        showGlassSnackbar(context, 'Error updating reaction: $e', type: SnackbarType.error);
       }
+    } finally {
+      _processingReactionDocIds.remove(docId);
     }
   }
 
@@ -607,11 +733,16 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
     _getSpinController().repeat();
     _scrollToBottom();
 
+    final replyData = _replyingToMessage;
+    setState(() {
+      _replyingToMessage = null;
+    });
+
     try {
       final isOnline = _isContactOnline(_selectedContact);
       final initialStatus = isOnline ? 'delivered' : 'sent';
 
-      await _firestore.addDocument('messages', {
+      final docData = <String, dynamic>{
         'senderId': currentUserId,
         'senderEmail': currentUserEmail,
         'senderName': senderName,
@@ -623,18 +754,21 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
         'isRead': false,
         'status': initialStatus,
         'timestamp': nowStr,
-      });
+      };
+
+      if (replyData != null) {
+        docData['replyToId'] = replyData['id'];
+        docData['replyToSenderName'] = replyData['senderName'] as String? ?? replyData['senderEmail'] as String? ?? 'User';
+        docData['replyToBody'] = replyData['body'] as String? ?? replyData['content'] as String? ?? '';
+      }
+
+      await _firestore.addDocument('messages', docData);
 
       if (mounted) {
         setState(() {
           _localPendingMessages.removeWhere((m) => m['tempId'] == tempId);
         });
       }
-
-      NotificationService().showChatPushNotification(
-        senderName: senderName,
-        messageText: text,
-      );
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -944,18 +1078,33 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
     }
   }
 
-  bool _isContactOnline(Map<String, dynamic>? c) {
-    if (c == null) return false;
-    final status = (c['status'] as String? ?? 'Offline').trim();
+  Color _getContactStatusColor(Map<String, dynamic>? c) {
+    if (c == null) return Colors.grey;
+    final status = (c['status'] as String? ?? 'Offline').trim().toLowerCase();
     final lastSeenStr = c['lastSeen'] as String? ?? '';
-    if (status.toLowerCase() == 'online' && lastSeenStr.isNotEmpty) {
+
+    if (lastSeenStr.isNotEmpty) {
       final lastSeen = DateTime.tryParse(lastSeenStr);
       if (lastSeen != null) {
         final diff = DateTime.now().difference(lastSeen);
-        return diff.inMinutes <= 2;
+        if (diff.inMinutes > 3) {
+          return Colors.grey;
+        }
       }
     }
-    return false;
+
+    if (status == 'idle') {
+      return Colors.amber;
+    }
+    if (status == 'online' || status == 'active') {
+      return Colors.green;
+    }
+    return Colors.grey;
+  }
+
+  bool _isContactOnline(Map<String, dynamic>? c) {
+    final color = _getContactStatusColor(c);
+    return color == Colors.green || color == Colors.amber;
   }
 
   String _contactSearchQuery = '';
@@ -1046,11 +1195,45 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
     list.sort((a, b) {
       final idA = a['id'] as String? ?? a['uid'] as String? ?? '';
       final idB = b['id'] as String? ?? b['uid'] as String? ?? '';
+      final emailA = a['email'] as String? ?? '';
+      final emailB = b['email'] as String? ?? '';
+      // 0. Nexus Announcement official channel ALWAYS at absolute top
+      final isOfficialA = idA == 'nexus_announcement' || idA == 'excelerate_general' || (a['isOfficialChannel'] as bool? ?? false);
+      final isOfficialB = idB == 'nexus_announcement' || idB == 'excelerate_general' || (b['isOfficialChannel'] as bool? ?? false);
+      if (isOfficialA && !isOfficialB) return -1;
+      if (!isOfficialA && isOfficialB) return 1;
+
+      // 1. Pinned contacts first
       final isPinnedA = _pinnedContactIds.contains(idA);
       final isPinnedB = _pinnedContactIds.contains(idB);
       if (isPinnedA && !isPinnedB) return -1;
       if (!isPinnedA && isPinnedB) return 1;
-      return 0;
+
+      // 2. Unread messages second
+      final unreadA = _getUnreadCountForContact(idA, emailA);
+      final unreadB = _getUnreadCountForContact(idB, emailB);
+      if (unreadA > 0 && unreadB == 0) return -1;
+      if (unreadA == 0 && unreadB > 0) return 1;
+
+      // 3. Most recent message timestamp third (Newest active conversation at top)
+      final lastMsgA = _getLastMessageForContact(idA, emailA);
+      final lastMsgB = _getLastMessageForContact(idB, emailB);
+      final tsA = lastMsgA?['timestamp'] as String? ?? '';
+      final tsB = lastMsgB?['timestamp'] as String? ?? '';
+
+      if (tsA.isNotEmpty && tsB.isNotEmpty) {
+        final cmp = tsB.compareTo(tsA);
+        if (cmp != 0) return cmp;
+      } else if (tsA.isNotEmpty && tsB.isEmpty) {
+        return -1;
+      } else if (tsA.isEmpty && tsB.isNotEmpty) {
+        return 1;
+      }
+
+      // 4. Fallback alphabetical by name
+      final nameA = (a['name'] as String? ?? '').toLowerCase();
+      final nameB = (b['name'] as String? ?? '').toLowerCase();
+      return nameA.compareTo(nameB);
     });
 
     return list;
@@ -1172,103 +1355,173 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
             ),
           const Divider(height: 1),
 
-          // Active Now Stories / Chatheads Bar
+          // Active People Horizontal Stories / Chatheads Bar
           if (displayContacts.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.only(left: 20, top: 12, bottom: 6),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Active People',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(
-              height: 75,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: displayContacts.length,
-                itemBuilder: (ctx, idx) {
-                  final contact = displayContacts[idx];
-                  final isOnline = _isContactOnline(contact);
+            Builder(
+              builder: (ctx) {
+                final activeContacts = displayContacts.where((c) {
+                  final color = _getContactStatusColor(c);
+                  return color == Colors.green || color == Colors.amber;
+                }).toList();
+                final listToShow = activeContacts.isNotEmpty ? activeContacts : displayContacts;
 
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedContact = contact;
-                      _subscribeToChat();
-                    });
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 14),
-                    child: Column(
-                      children: [
-                        Stack(
-                          children: [
-                            AvatarUtils.buildAvatarWidget(
-                              contact['avatar'] as String? ?? 'preset_1',
-                              radius: 22,
-                              fallbackLetter: contact['name'] as String? ?? 'U',
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 20, top: 12, bottom: 8),
+                      child: Row(
+                        children: [
+                          Text(
+                            'Active People',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
                             ),
-                            Positioned(
-                              right: 0,
-                              bottom: 0,
-                              child: Container(
-                                width: 12,
-                                height: 12,
-                                decoration: BoxDecoration(
-                                  color: isOnline ? Colors.green : Colors.grey,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: theme.colorScheme.surface, width: 2),
+                          ),
+                          if (activeContacts.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${activeContacts.length} online',
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          (contact['name'] as String? ?? 'User').split(' ')[0],
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
+                    SizedBox(
+                      height: 90,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: listToShow.length,
+                        itemBuilder: (ctx, idx) {
+                          final contact = listToShow[idx];
+                          final statusColor = _getContactStatusColor(contact);
+                          final name = contact['name'] as String? ?? 'User';
+                          final firstName = name.trim().isNotEmpty ? name.trim().split(' ').first : 'User';
+
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedContact = contact;
+                                _subscribeToChat();
+                              });
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 12),
+                              child: SizedBox(
+                                width: 58,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Stack(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(2),
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: statusColor.withValues(alpha: 0.8),
+                                              width: 2,
+                                            ),
+                                          ),
+                                          child: AvatarUtils.buildAvatarWidget(
+                                            contact['avatar'] as String? ?? 'preset_1',
+                                            radius: 20,
+                                            fallbackLetter: name,
+                                          ),
+                                        ),
+                                        Positioned(
+                                          right: 2,
+                                          bottom: 2,
+                                          child: Container(
+                                            width: 12,
+                                            height: 12,
+                                            decoration: BoxDecoration(
+                                              color: statusColor,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: theme.colorScheme.surface,
+                                                width: 2,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      firstName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                      style: theme.textTheme.labelSmall?.copyWith(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color: theme.colorScheme.onSurface,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
-          ),
+          ],
           const Divider(height: 1),
-        ],
 
-        // Vertical Conversation / People List
-        Expanded(
-          child: filtered.isEmpty
-              ? Center(
-                  child: Text(
-                    'No people found',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: filtered.length,
-                  itemBuilder: (ctx, idx) {
+          // Vertical Conversation / People List
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _handleRefresh,
+              color: theme.colorScheme.primary,
+              child: filtered.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: 200,
+                          child: Center(
+                            child: Text(
+                              'No people found',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: filtered.length,
+                      itemBuilder: (ctx, idx) {
                     final contact = filtered[idx];
                     final contactId = contact['id'] as String? ?? contact['uid'] as String? ?? '';
                     final email = contact['email'] as String? ?? '';
                     final name = contact['name'] as String? ?? 'User';
                     final role = contact['role'] as String? ?? 'Intern';
                     final avatar = contact['avatar'] as String? ?? 'preset_1';
-                    final isOnline = _isContactOnline(contact);
+                    final statusColor = _getContactStatusColor(contact);
                     final isPinned = _pinnedContactIds.contains(contactId);
                     final isMuted = _mutedContactIds.contains(contactId);
 
@@ -1355,7 +1608,7 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
                                         width: 12,
                                         height: 12,
                                         decoration: BoxDecoration(
-                                          color: isOnline ? Colors.green : Colors.grey,
+                                          color: statusColor,
                                           shape: BoxShape.circle,
                                           border: Border.all(color: theme.colorScheme.surface, width: 2),
                                         ),
@@ -1382,6 +1635,14 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
                                                   : theme.colorScheme.onSurface,
                                             ),
                                           ),
+                                          if (contact['isOfficialChannel'] == true || name.contains('Nexus Announcement') || name.contains('Excelerate General')) ...[
+                                            const SizedBox(width: 4),
+                                            const Icon(
+                                              Icons.verified,
+                                              size: 15,
+                                              color: Color(0xFF3897F0),
+                                            ),
+                                          ],
                                           if (isPinned) ...[
                                             const SizedBox(width: 6),
                                             Icon(
@@ -1447,6 +1708,7 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
                     );
                   },
                 ),
+            ),
         ),
       ],
     ),
@@ -1458,8 +1720,7 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
     final contactName = _selectedContact?['name'] as String? ?? 'Select Chat';
     final contactRole = _selectedContact?['role'] as String? ?? 'User';
     final contactAvatar = _selectedContact?['avatar'] as String? ?? 'preset_1';
-    final isContactActive = _isContactOnline(_selectedContact);
-    final activeDotColor = isContactActive ? Colors.green : Colors.grey;
+    final activeDotColor = _getContactStatusColor(_selectedContact);
 
     return Stack(
       children: [
@@ -1515,12 +1776,24 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          contactName,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontFamily: 'Kameron',
-                            fontWeight: FontWeight.bold,
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              contactName,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontFamily: 'Kameron',
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (_selectedContact?['isOfficialChannel'] == true || contactName.contains('Nexus Announcement') || contactName.contains('Excelerate General')) ...[
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.verified,
+                                size: 16,
+                                color: Color(0xFF3897F0),
+                              ),
+                            ],
+                          ],
                         ),
                         Text(
                           _isPartnerTyping ? 'Typing...' : contactRole,
@@ -1626,23 +1899,11 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'No messages yet. Send a message or tap wave below to break the ice!',
+                        'No messages yet. Start the conversation!',
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        ),
-                        onPressed: () {
-                          _sendMessage(retryText: '👋 Hi $contactName!');
-                        },
-                        icon: const Text('👋', style: TextStyle(fontSize: 18)),
-                        label: Text('Say Hi to $contactName'),
                       ),
                     ],
                   ),
@@ -1658,6 +1919,9 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
                       final msg = allDisplayMessages[idx];
                       final body = msg['body'] as String? ?? msg['content'] as String? ?? '';
                       final isEdited = msg['isEdited'] as bool? ?? false;
+                      final isUnsent = msg['isUnsent'] as bool? ?? false;
+                      final replyToSenderName = msg['replyToSenderName'] as String? ?? '';
+                      final replyToBody = msg['replyToBody'] as String? ?? '';
                       final sId = (msg['senderId'] as String? ?? '').toLowerCase();
                       final sEmail = (msg['senderEmail'] as String? ?? '').toLowerCase();
                       final sName = (msg['senderName'] as String? ?? '').toLowerCase();
@@ -1691,64 +1955,140 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
                                   const SizedBox(width: 8),
                                 ],
                                 Flexible(
-                                  child: GestureDetector(
-                                    onLongPress: () => _showIosMessageContextMenu(msg, isMe),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                      constraints: BoxConstraints(
-                                        maxWidth: MediaQuery.of(context).size.width * 0.72,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: isMe
-                                            ? theme.colorScheme.primary
-                                            : (theme.brightness == Brightness.dark
-                                                ? const Color(0xFF2D2D30)
-                                                : const Color(0xFFE8E8ED)),
-                                        border: isMe
-                                            ? null
-                                            : Border.all(
-                                                color: theme.colorScheme.outline.withValues(alpha: 0.2),
-                                                width: 1,
-                                              ),
-                                        borderRadius: BorderRadius.only(
-                                          topLeft: const Radius.circular(18),
-                                          topRight: const Radius.circular(18),
-                                          bottomLeft: Radius.circular(isMe ? 18 : 4),
-                                          bottomRight: Radius.circular(isMe ? 4 : 18),
-                                        ),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            body,
-                                            style: theme.textTheme.bodyMedium?.copyWith(
-                                              color: isMe
-                                                  ? theme.colorScheme.onPrimary
-                                                  : (theme.brightness == Brightness.dark
-                                                      ? Colors.white
-                                                      : const Color(0xFF1C1C1E)),
-                                              fontWeight: isMe ? FontWeight.normal : FontWeight.w500,
+                                  child: isUnsent
+                                      ? Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(
+                                              color: theme.colorScheme.outline.withValues(alpha: 0.15),
                                             ),
                                           ),
-                                          if (isEdited) ...[
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              '(edited)',
-                                              style: theme.textTheme.labelSmall?.copyWith(
-                                                fontSize: 10,
-                                                fontStyle: FontStyle.italic,
-                                                color: isMe
-                                                    ? theme.colorScheme.onPrimary.withValues(alpha: 0.7)
-                                                    : theme.colorScheme.onSurfaceVariant,
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.block_rounded,
+                                                size: 14,
+                                                color: theme.colorScheme.onSurfaceVariant,
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                'This message was unsent',
+                                                style: theme.textTheme.bodySmall?.copyWith(
+                                                  fontStyle: FontStyle.italic,
+                                                  color: theme.colorScheme.onSurfaceVariant,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      : GestureDetector(
+                                          onLongPress: () => _showIosMessageContextMenu(msg, isMe),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                            constraints: BoxConstraints(
+                                              maxWidth: MediaQuery.of(context).size.width * 0.72,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: isMe
+                                                  ? theme.colorScheme.primary
+                                                  : (theme.brightness == Brightness.dark
+                                                      ? const Color(0xFF2D2D30)
+                                                      : const Color(0xFFE8E8ED)),
+                                              border: isMe
+                                                  ? null
+                                                  : Border.all(
+                                                      color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                                                      width: 1,
+                                                    ),
+                                              borderRadius: BorderRadius.only(
+                                                topLeft: const Radius.circular(18),
+                                                topRight: const Radius.circular(18),
+                                                bottomLeft: Radius.circular(isMe ? 18 : 4),
+                                                bottomRight: Radius.circular(isMe ? 4 : 18),
                                               ),
                                             ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                  ),
+                                            child: Column(
+                                              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                if (replyToBody.isNotEmpty) ...[
+                                                  Container(
+                                                    margin: const EdgeInsets.only(bottom: 6),
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                    decoration: BoxDecoration(
+                                                      color: isMe
+                                                          ? Colors.black.withValues(alpha: 0.15)
+                                                          : theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
+                                                      borderRadius: BorderRadius.circular(8),
+                                                      border: Border(
+                                                        left: BorderSide(
+                                                          color: isMe
+                                                              ? theme.colorScheme.onPrimary
+                                                              : theme.colorScheme.primary,
+                                                          width: 3,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(
+                                                          replyToSenderName,
+                                                          style: theme.textTheme.labelSmall?.copyWith(
+                                                            fontWeight: FontWeight.bold,
+                                                            fontSize: 10,
+                                                            color: isMe
+                                                                ? theme.colorScheme.onPrimary
+                                                                : theme.colorScheme.primary,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(height: 2),
+                                                        Text(
+                                                          replyToBody,
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                          style: theme.textTheme.bodySmall?.copyWith(
+                                                            fontSize: 11,
+                                                            color: isMe
+                                                                ? theme.colorScheme.onPrimary.withValues(alpha: 0.9)
+                                                                : theme.colorScheme.onSurface,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                                Text(
+                                                  body,
+                                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                                    color: isMe
+                                                        ? theme.colorScheme.onPrimary
+                                                        : (theme.brightness == Brightness.dark
+                                                            ? Colors.white
+                                                            : const Color(0xFF1C1C1E)),
+                                                    fontWeight: isMe ? FontWeight.normal : FontWeight.w500,
+                                                  ),
+                                                ),
+                                                if (isEdited) ...[
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    '(edited)',
+                                                    style: theme.textTheme.labelSmall?.copyWith(
+                                                      fontSize: 10,
+                                                      fontStyle: FontStyle.italic,
+                                                      color: isMe
+                                                          ? theme.colorScheme.onPrimary.withValues(alpha: 0.7)
+                                                          : theme.colorScheme.onSurfaceVariant,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                        ),
                                 ),
                               ],
                             ),
@@ -1938,6 +2278,52 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
             ),
           ],
 
+          // Reply Preview Banner
+          if (_replyingToMessage != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                border: Border(
+                  top: BorderSide(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.4),
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.reply_rounded, size: 16, color: theme.colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Replying to ${_replyingToMessage!['senderName'] ?? "User"}',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          _replyingToMessage!['body'] as String? ?? _replyingToMessage!['content'] as String? ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => setState(() => _replyingToMessage = null),
+                    child: Icon(Icons.close_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+
           // Inline Edit Banner
           if (_editingDocId != null)
             Container(
@@ -1971,25 +2357,136 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
               ),
             ),
 
-          // Pure Floating 3D Liquid Glass Input Bar (Separate Floating Input Pill & Separate Floating 3D Send Button)
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12, top: 4),
-              child: Row(
-                children: [
-                  // Floating 3D Glass Input Pill
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(30),
+          // Read-Only Banner for Nexus Announcement vs Regular Input Bar
+          if (_selectedContact?['isOfficialChannel'] == true || contactName.contains('Nexus Announcement') || contactName.contains('Excelerate General'))
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12, top: 4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: theme.colorScheme.outline.withValues(alpha: 0.15),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.campaign_rounded,
+                        color: theme.colorScheme.primary,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Only official announcements are posted in Nexus Announcement. Long-press any announcement to react with emojis.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else ...[
+            // Pure Floating 3D Liquid Glass Input Bar (Separate Floating Input Pill & Separate Floating 3D Send Button)
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12, top: 4),
+                child: Row(
+                  children: [
+                    // Floating 3D Glass Input Pill
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: theme.brightness == Brightness.dark
+                                  ? const Color(0xFF1E1E22).withValues(alpha: 0.85)
+                                  : Colors.white.withValues(alpha: 0.88),
+                              borderRadius: BorderRadius.circular(30),
+                              border: Border.all(
+                                color: _editingDocId != null
+                                    ? theme.colorScheme.primary
+                                    : Colors.white.withValues(alpha: theme.brightness == Brightness.dark ? 0.22 : 0.75),
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: theme.brightness == Brightness.dark ? 0.35 : 0.12),
+                                  blurRadius: 18,
+                                  spreadRadius: 1,
+                                  offset: const Offset(0, 6),
+                                ),
+                                BoxShadow(
+                                  color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                                  blurRadius: 12,
+                                  spreadRadius: -2,
+                                  offset: const Offset(0, -2),
+                                ),
+                              ],
+                            ),
+                            child: TextField(
+                              controller: _textController,
+                              focusNode: _focusNode,
+                              readOnly: _isSending,
+                              textCapitalization: TextCapitalization.sentences,
+                              onChanged: _onTypingChanged,
+                              onSubmitted: (_) => _editingDocId != null ? _submitInlineEdit() : _sendMessage(),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurface,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: _editingDocId != null
+                                    ? 'Edit message...'
+                                    : 'Message ${contactName.trim().isNotEmpty ? contactName.trim().split(' ').first : "User"}...',
+                                hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                                filled: false,
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _showEmojiPicker
+                                        ? Icons.keyboard_hide_rounded
+                                        : Icons.sentiment_satisfied_alt_rounded,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                  onPressed: _toggleEmojiPicker,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    // Standalone Liquid Glass Floating 3D Send Button (Matching Liquid Glass Glassmorphism)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
                       child: BackdropFilter(
                         filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                          width: 48,
+                          height: 48,
                           decoration: BoxDecoration(
                             color: theme.brightness == Brightness.dark
                                 ? const Color(0xFF1E1E22).withValues(alpha: 0.85)
                                 : Colors.white.withValues(alpha: 0.88),
-                            borderRadius: BorderRadius.circular(30),
+                            shape: BoxShape.circle,
                             border: Border.all(
                               color: _editingDocId != null
                                   ? theme.colorScheme.primary
@@ -2011,106 +2508,33 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
                               ),
                             ],
                           ),
-                          child: TextField(
-                            controller: _textController,
-                            focusNode: _focusNode,
-                            readOnly: _isSending,
-                            textCapitalization: TextCapitalization.sentences,
-                            onChanged: _onTypingChanged,
-                            onSubmitted: (_) => _editingDocId != null ? _submitInlineEdit() : _sendMessage(),
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurface,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: _editingDocId != null
-                                  ? 'Edit message...'
-                                  : 'Message ${contactName.trim().isNotEmpty ? contactName.trim().split(' ').first : "User"}...',
-                              hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
-                                fontWeight: FontWeight.w500,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                              filled: false,
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _showEmojiPicker
-                                      ? Icons.keyboard_hide_rounded
-                                      : Icons.sentiment_satisfied_alt_rounded,
-                                  color: theme.colorScheme.primary,
-                                ),
-                                onPressed: _toggleEmojiPicker,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  // Standalone Liquid Glass Floating 3D Send Button (Matching Liquid Glass Glassmorphism)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                      child: Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: theme.brightness == Brightness.dark
-                              ? const Color(0xFF1E1E22).withValues(alpha: 0.85)
-                              : Colors.white.withValues(alpha: 0.88),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: _editingDocId != null
-                                ? theme.colorScheme.primary
-                                : Colors.white.withValues(alpha: theme.brightness == Brightness.dark ? 0.22 : 0.75),
-                            width: 1.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: theme.brightness == Brightness.dark ? 0.35 : 0.12),
-                              blurRadius: 18,
-                              spreadRadius: 1,
-                              offset: const Offset(0, 6),
-                            ),
-                            BoxShadow(
-                              color: theme.colorScheme.primary.withValues(alpha: 0.15),
-                              blurRadius: 12,
-                              spreadRadius: -2,
-                              offset: const Offset(0, -2),
-                            ),
-                          ],
-                        ),
-                        child: IconButton(
-                          icon: _isSending
-                              ? RotationTransition(
-                                  turns: _getSpinController(),
-                                  child: Image.asset(
-                                    'assets/icons/app_logo.png',
-                                    width: 22,
-                                    height: 22,
+                          child: IconButton(
+                            icon: _isSending
+                                ? RotationTransition(
+                                    turns: _getSpinController(),
+                                    child: Image.asset(
+                                      'assets/icons/app_logo.png',
+                                      width: 22,
+                                      height: 22,
+                                    ),
+                                  )
+                                : Icon(
+                                    _editingDocId != null ? Icons.check_rounded : Icons.send_rounded,
+                                    color: theme.colorScheme.primary,
+                                    size: 20,
                                   ),
-                                )
-                              : Icon(
-                                  _editingDocId != null ? Icons.check_rounded : Icons.send_rounded,
-                                  color: theme.colorScheme.primary,
-                                  size: 20,
-                                ),
-                          onPressed: _isSending
-                              ? null
-                              : (_editingDocId != null ? _submitInlineEdit : _sendMessage),
+                            onPressed: _isSending
+                                ? null
+                                : (_editingDocId != null ? _submitInlineEdit : _sendMessage),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
 
@@ -2127,6 +2551,15 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
             onReact: (emoji) => _reactToMessage(
               _contextMenuMsg!['id'] as String? ?? '', emoji,
             ),
+            onReply: () {
+              final msg = _contextMenuMsg;
+              _dismissContextMenu();
+              if (msg != null) {
+                setState(() {
+                  _replyingToMessage = msg;
+                });
+              }
+            },
             onCopy: () {
               _dismissContextMenu();
               final body = _contextMenuMsg!['body'] as String? ?? _contextMenuMsg!['content'] as String? ?? '';
@@ -2144,7 +2577,11 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
               _dismissContextMenu();
               if (docId.isNotEmpty) {
                 try {
-                  await _firestore.deleteDocument('messages', docId);
+                  await _firestore.updateDocument('messages', docId, {
+                    'body': 'This message was unsent',
+                    'isUnsent': true,
+                    'reactions': {},
+                  });
                   if (mounted) {
                     showGlassSnackbar(context, 'Message unsent', type: SnackbarType.info);
                   }
@@ -2173,6 +2610,7 @@ class _IosContextMenuOverlay extends StatelessWidget {
   final bool canEditUnsend;
   final VoidCallback onDismiss;
   final void Function(String emoji) onReact;
+  final VoidCallback onReply;
   final VoidCallback onCopy;
   final VoidCallback onEdit;
   final VoidCallback onUnsend;
@@ -2185,6 +2623,7 @@ class _IosContextMenuOverlay extends StatelessWidget {
     required this.canEditUnsend,
     required this.onDismiss,
     required this.onReact,
+    required this.onReply,
     required this.onCopy,
     required this.onEdit,
     required this.onUnsend,
@@ -2311,6 +2750,13 @@ class _IosContextMenuOverlay extends StatelessWidget {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            // Reply
+                            _buildMenuItem(
+                              label: 'Reply',
+                              icon: Icons.reply_rounded,
+                              onTap: onReply,
+                            ),
+                            _divider(),
                             // Copy
                             _buildMenuItem(
                               label: 'Copy',

@@ -1,17 +1,37 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
+import 'package:nexus/core/services/firestore_service.dart';
+import 'package:nexus/firebase_options.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  debugPrint('Handling background FCM message: ${message.messageId}');
-  final notification = message.notification;
-  if (notification != null) {
-    NotificationService().showChatPushNotification(
-      senderName: notification.title ?? 'New Message',
-      messageText: notification.body ?? '',
-    );
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+    debugPrint('Handling background FCM message in terminated/killed state: ${message.messageId}');
+    
+    final notification = message.notification;
+    final title = notification?.title ?? message.data['title'] ?? message.data['senderName'] ?? 'New Message';
+    final body = notification?.body ?? message.data['body'] ?? message.data['messageText'] ?? '';
+
+    if (title.isNotEmpty || body.isNotEmpty) {
+      final service = NotificationService();
+      await service.initialize();
+      await service.showChatPushNotification(
+        senderName: title,
+        messageText: body,
+      );
+    }
+  } catch (e) {
+    debugPrint('Error in background FCM message handler: $e');
   }
 }
 
@@ -31,7 +51,7 @@ class NotificationService {
     if (_isInitialized) return;
 
     try {
-      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const androidSettings = AndroidInitializationSettings('@mipmap/launcher_icon');
       const iosSettings = DarwinInitializationSettings(
         requestAlertPermission: true,
         requestBadgePermission: true,
@@ -47,26 +67,66 @@ class NotificationService {
         settings: initSettings,
       );
 
-      // Request system push notification permissions for closed app state
-      final settings = await _fcm.requestPermission(
+      // Create High Priority Android Notification Channel for Zero-Delay & Terminated State
+      const AndroidNotificationChannel channel = AndroidNotificationChannel(
+        'nexus_messages_channel',
+        'Chat Messages',
+        description: 'Real-time direct messages notifications',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+      );
+
+      final androidPlugin = _notificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin != null) {
+        await androidPlugin.createNotificationChannel(channel);
+        await androidPlugin.requestNotificationsPermission();
+      }
+
+      // Configure Foreground Presentation Options for Zero Delay
+      await _fcm.setForegroundNotificationPresentationOptions(
         alert: true,
         badge: true,
         sound: true,
       );
 
-      if (settings.authorizationStatus == AuthorizationStatus.authorized && userId != null && userId.isNotEmpty) {
+      // Request system push notification permissions
+      final settings = await _fcm.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        criticalAlert: true,
+        provisional: false,
+      );
+
+      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional) {
         final token = await _fcm.getToken();
         if (token != null) {
           debugPrint('FCM Token registered: $token');
+          if (userId != null && userId.isNotEmpty) {
+            await _updateUserFcmToken(userId, token);
+          }
         }
+
+        _fcm.onTokenRefresh.listen((newToken) async {
+          debugPrint('FCM Token refreshed: $newToken');
+          if (userId != null && userId.isNotEmpty) {
+            await _updateUserFcmToken(userId, newToken);
+          }
+        });
       }
 
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         final notification = message.notification;
-        if (notification != null) {
+        final title = notification?.title ?? message.data['title'] ?? message.data['senderName'] ?? 'New Message';
+        final body = notification?.body ?? message.data['body'] ?? message.data['messageText'] ?? '';
+
+        if (title.isNotEmpty || body.isNotEmpty) {
           showChatPushNotification(
-            senderName: notification.title ?? 'New Message',
-            messageText: notification.body ?? '',
+            senderName: title,
+            messageText: body,
           );
         }
       });
@@ -74,6 +134,18 @@ class NotificationService {
       _isInitialized = true;
     } catch (e) {
       debugPrint('Note: Error initializing NotificationService: $e');
+    }
+  }
+
+  Future<void> _updateUserFcmToken(String userId, String token) async {
+    try {
+      final firestore = FirestoreService();
+      await firestore.updateDocument('users', userId, {
+        'fcmToken': token,
+        'fcmUpdatedAt': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('Error saving FCM Token to Firestore: $e');
     }
   }
 
@@ -94,6 +166,9 @@ class NotificationService {
         importance: Importance.max,
         priority: Priority.high,
         showWhen: true,
+        icon: '@mipmap/launcher_icon',
+        playSound: true,
+        enableVibration: true,
       );
 
       const iosDetails = DarwinNotificationDetails(

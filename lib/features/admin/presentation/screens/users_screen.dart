@@ -209,8 +209,10 @@ class _UsersScreenState extends State<UsersScreen> {
 
   void _showUserDetail(Map<String, String> user) {
     final theme = Theme.of(context);
-    final isOnline = user['status'] == 'Online';
-    final statusColor = isOnline ? Colors.green : Colors.grey;
+    final statusStr = (user['status'] ?? 'Offline').trim().toLowerCase();
+    final statusColor = statusStr == 'idle'
+        ? Colors.amber
+        : ((statusStr == 'online' || statusStr == 'active') ? Colors.green : Colors.grey);
     String currentRole = user['role'] ?? 'Intern';
 
     showModalBottomSheet(
@@ -505,8 +507,20 @@ class _UsersScreenState extends State<UsersScreen> {
                       separatorBuilder: (_, _) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final user = results[index];
-                        final isOnline = user['status'] == 'Online';
-                        final statusDotColor = isOnline ? const Color(0xFF34C759) : const Color(0xFF8E8E93);
+                        final status = (user['status'] ?? 'Offline').trim().toLowerCase();
+                        final lastSeenStr = user['lastSeen'] ?? '';
+                        bool isStale = false;
+                        if (lastSeenStr.isNotEmpty) {
+                          final ls = DateTime.tryParse(lastSeenStr);
+                          if (ls != null && DateTime.now().difference(ls).inMinutes > 3) {
+                            isStale = true;
+                          }
+                        }
+                        final statusDotColor = isStale
+                            ? const Color(0xFF8E8E93)
+                            : (status == 'idle'
+                                ? Colors.amber
+                                : ((status == 'online' || status == 'active') ? const Color(0xFF34C759) : const Color(0xFF8E8E93)));
 
                         return Dismissible(
                           key: Key('${user['uid']}_$index'),

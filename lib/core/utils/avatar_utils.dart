@@ -27,8 +27,23 @@ class AvatarUtils {
     }
   }
 
-  /// Build avatar widget displaying either custom uploaded Base64 photo or proper default person profile icon.
+  /// Build avatar widget displaying custom uploaded Base64 photo, asset logo, network photo, or default profile icon.
   static Widget buildAvatarWidget(String? photoData, {double radius = 24, String? fallbackLetter}) {
+    if (photoData != null && photoData.startsWith('assets/')) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundImage: AssetImage(photoData),
+        backgroundColor: Colors.transparent,
+      );
+    }
+
+    if (photoData != null && (photoData.startsWith('http://') || photoData.startsWith('https://'))) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundImage: NetworkImage(photoData),
+      );
+    }
+
     if (photoData != null && photoData.startsWith('data:image')) {
       try {
         final base64Data = photoData.split(',').last;
