@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/bonfire404/project_Nexus/compare/nexus-v1.5.0...nexus-v1.6.0) (2026-07-28)
+
+
+### Features
+
+* implement role-based dashboard navigation, messaging system, and core services for notifications and user presence ([2a7daf6](https://github.com/bonfire404/project_Nexus/commit/2a7daf66bd079ac787f10dd71a9f1c6f57677b92))
+
 ## [1.5.0](https://github.com/bonfire404/project_Nexus/compare/nexus-v1.4.0...nexus-v1.5.0) (2026-07-27)
 
 
