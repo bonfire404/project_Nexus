@@ -71,7 +71,7 @@ lib/
 ### Installation
 1.  **Clone the Repository**
     ```bash
-    git clone https://github.com/your-username/project_Nexus.git
+    git clone https://github.com/bonfire404/project_Nexus.git
     ```
 2.  **Initialize Project**
     ```bash
