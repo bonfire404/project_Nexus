@@ -10,6 +10,7 @@ import 'package:nexus/features/dashboard/presentation/screens/home_screen.dart';
 import 'package:nexus/features/programs/presentation/screens/program_listing_screen.dart';
 import 'package:nexus/features/programs/presentation/screens/program_details_screen.dart';
 import 'package:nexus/features/profile/presentation/screens/feedback_screen.dart';
+import 'package:nexus/features/ai_assistant/presentation/screens/chat_screen.dart';
 
 /// Declarative router with auth-aware redirects.
 class NexusRouter {
@@ -25,6 +26,7 @@ class NexusRouter {
   static const String programs = '/programs';
   static const String programDetails = '/programs/:id';
   static const String feedback = '/feedback';
+  static const String assistant = '/assistant';
 
   /// Creates the GoRouter instance bound to [authController].
   static GoRouter create(
@@ -143,6 +145,10 @@ class NexusRouter {
           path: feedback,
           builder: (context, state) =>
               FeedbackScreen(authController: authController),
+        ),
+        GoRoute(
+          path: assistant,
+          builder: (context, state) => const ChatScreen(),
         ),
       ],
     );

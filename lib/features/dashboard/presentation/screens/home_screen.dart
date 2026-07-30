@@ -171,6 +171,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push('/assistant'),
+        icon: const Icon(Icons.smart_toy),
+        label: const Text('Assistant'),
+      ),
       body: _AnimatedIndexedStack(
         index: _currentIndex,
         children: items
