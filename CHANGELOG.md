@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0](https://github.com/bonfire404/project_Nexus/compare/nexus-v1.6.0...nexus-v1.7.0) (2026-08-01)
+
+
+### Features
+
+* implement core AI assistant chat interface and program management infrastructure ([66f6dd8](https://github.com/bonfire404/project_Nexus/commit/66f6dd8acf51521fb4203c399af225f2bae82681))
+* **release:** v1.7.0 - Dynamic RAG AI Assistant, Real-Time Meeting Sync and Private Support DM ([e7d53f3](https://github.com/bonfire404/project_Nexus/commit/e7d53f3ed54494e187eaf712be9e7cffc88e1231))
+
 ## [1.6.0](https://github.com/bonfire404/project_Nexus/compare/nexus-v1.5.0...nexus-v1.6.0) (2026-07-28)
 
 
