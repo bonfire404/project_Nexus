@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/bonfire404/project_Nexus/compare/nexus-v1.7.0...nexus-v1.7.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* **release:** configure android release signing and fix black screen startup exception ([eca2339](https://github.com/bonfire404/project_Nexus/commit/eca233926c48f9a0922a536c25c77d8d0ce286f9))
+
 ## [1.7.0](https://github.com/bonfire404/project_Nexus/compare/nexus-v1.6.0...nexus-v1.7.0) (2026-08-01)
 
 
