@@ -1,26 +1,22 @@
 import '../../domain/entities/assistant_response.dart';
 import '../../domain/repositories/ai_repository.dart';
-import '../sources/intent_engine.dart';
-import '../sources/knowledge_source.dart';
+import '../sources/rag_engine.dart';
 
 class AIRepositoryImpl implements AIRepository {
-  final IntentEngine _intentEngine;
-  final KnowledgeSource _knowledgeSource;
+  final NexusRagEngine _ragEngine;
 
   AIRepositoryImpl({
-    required IntentEngine intentEngine,
-    required KnowledgeSource knowledgeSource,
-  })  : _intentEngine = intentEngine,
-        _knowledgeSource = knowledgeSource;
+    NexusRagEngine? ragEngine,
+  }) : _ragEngine = ragEngine ?? NexusRagEngine();
 
   @override
   Future<AssistantResponse> getResponse(String userMessage) async {
-    final intent = _intentEngine.detectIntent(userMessage);
+    final response = await _ragEngine.query(userMessage);
 
     await Future.delayed(
-      const Duration(milliseconds: 700),
+      const Duration(milliseconds: 500),
     );
 
-    return _knowledgeSource.getResponse(intent);
+    return response;
   }
 }

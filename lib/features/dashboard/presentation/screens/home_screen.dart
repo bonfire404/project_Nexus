@@ -1,4 +1,6 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -41,18 +43,45 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
+  late final AnimationController _logoSpinController;
+  late final Animation<double> _logoSpinAnimation;
 
   @override
   void initState() {
     super.initState();
+    _logoSpinController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _logoSpinAnimation = CurvedAnimation(
+      parent: _logoSpinController,
+      curve: Curves.easeInOutCubic,
+    );
+
     final uid = widget.authController.currentUser?.uid;
     if (uid != null && uid.isNotEmpty) {
       NotificationService().initialize(userId: uid);
       PresenceService().initialize(uid);
     } else {
       NotificationService().initialize();
+    }
+  }
+
+  @override
+  void dispose() {
+    _logoSpinController.dispose();
+    super.dispose();
+  }
+
+  void _onTabChanged(int index) {
+    if (_currentIndex != index) {
+      setState(() {
+        _currentIndex = index;
+      });
+      _logoSpinController.forward(from: 0.0);
     }
   }
 
@@ -111,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
               (i) => i.label == 'Discover' || i.label == 'Programs',
             );
             if (discoverIndex != -1) {
-              setState(() => _currentIndex = discoverIndex);
+              _onTabChanged(discoverIndex);
             }
           },
         );
@@ -151,16 +180,37 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                'assets/icons/app_logo.png',
-                width: 40,
-                height: 40,
-                fit: BoxFit.cover,
+            AnimatedBuilder(
+              animation: _logoSpinAnimation,
+              builder: (context, child) {
+                return Transform.rotate(
+                  angle: _logoSpinAnimation.value * 2 * 3.141592653589793,
+                  child: child,
+                );
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.18),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.asset(
+                    'assets/icons/app_logo.png',
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Text(
               'Excelerate Nexus',
               style: theme.textTheme.titleLarge?.copyWith(
@@ -170,11 +220,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/assistant'),
-        icon: const Icon(Icons.smart_toy),
-        label: const Text('Assistant'),
       ),
       body: _AnimatedIndexedStack(
         index: _currentIndex,
@@ -191,112 +236,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _FloatingNavBar(
                   items: items,
                   currentIndex: _currentIndex,
-                  onTap: (index) {
-                    setState(() => _currentIndex = index);
-                  },
+                  onTap: _onTabChanged,
                 ),
               ),
               const SizedBox(width: 12),
-              GestureDetector(
-                onTap: () {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (ctx) => MessengerChatSheet(
-                      authController: widget.authController,
-                    ),
-                  );
-                },
-                child: StreamBuilder<int>(
-                  stream: FirebaseFirestore.instance
-                      .collection('messages')
-                      .snapshots()
-                      .map((snap) {
-                    final uid = widget.authController.currentUser?.uid ?? '';
-                    final email = widget.authController.userEmail.trim().toLowerCase();
-                    if (uid.isEmpty) return 0;
-
-                    return snap.docs.where((doc) {
-                      final data = doc.data();
-                      final senderId = (data['senderId'] as String? ?? '').trim();
-                      final senderEmail = (data['senderEmail'] as String? ?? '').trim().toLowerCase();
-                      final recipientId = (data['recipientId'] as String? ?? '').trim();
-                      final recipientEmail = (data['recipientEmail'] as String? ?? '').trim().toLowerCase();
-                      final isRead = data['isRead'] as bool? ?? false;
-                      final isUnsent = data['isUnsent'] as bool? ?? false;
-
-                      final isFromOther = senderId.isNotEmpty ? (senderId != uid) : (senderEmail.isNotEmpty && senderEmail != email);
-                      final isForMe = (recipientId.isNotEmpty && recipientId == uid) || (email.isNotEmpty && recipientEmail == email);
-
-                      return isForMe && isFromOther && !isRead && !isUnsent;
-                    }).length;
-                  }),
-                  builder: (context, snapshot) {
-                    final unreadCount = snapshot.data ?? 0;
-
-                    return Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surface,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: theme.brightness == Brightness.dark
-                                  ? const Color(0xFF1E293B)
-                                  : const Color(0xFFE2E8F0),
-                              width: 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.08),
-                                blurRadius: 16,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: HugeIcon(
-                              icon: HugeIcons.strokeRoundedBubbleChat,
-                              size: 22,
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                        ),
-                        if (unreadCount > 0)
-                          Positioned(
-                            right: 0,
-                            top: 0,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.redAccent,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: theme.colorScheme.surface, width: 1.5),
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 18,
-                                minHeight: 18,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  unreadCount > 99 ? '99+' : '$unreadCount',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
+              _IosGlassFloatingChatButton(
+                authController: widget.authController,
               ),
             ],
           ),
@@ -1848,6 +1793,401 @@ class _AnimatedIndexedStackState extends State<_AnimatedIndexedStack>
       child: SlideTransition(
         position: _slideAnimation,
         child: IndexedStack(index: _currentIndex, children: widget.children),
+      ),
+    );
+  }
+}
+
+class _IosGlassFloatingChatButton extends StatefulWidget {
+  final AuthController authController;
+
+  const _IosGlassFloatingChatButton({
+    required this.authController,
+  });
+
+  @override
+  State<_IosGlassFloatingChatButton> createState() =>
+      __IosGlassFloatingChatButtonState();
+}
+
+class __IosGlassFloatingChatButtonState
+    extends State<_IosGlassFloatingChatButton>
+    with SingleTickerProviderStateMixin {
+  bool _isOpen = false;
+  OverlayEntry? _overlayEntry;
+  late final AnimationController _animController;
+  late final Animation<double> _expandAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    );
+    _expandAnimation = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutBack,
+      reverseCurve: Curves.easeInCubic,
+    );
+  }
+
+  @override
+  void dispose() {
+    _removeOverlay();
+    _animController.dispose();
+    super.dispose();
+  }
+
+  void _removeOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  void _toggleMenu() {
+    HapticFeedback.mediumImpact();
+    if (_isOpen) {
+      _closeMenu();
+    } else {
+      _openMenu();
+    }
+  }
+
+  void _openMenu() {
+    setState(() => _isOpen = true);
+    _animController.forward(from: 0.0);
+
+    _overlayEntry = _createOverlayEntry();
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _closeMenu() {
+    if (!_isOpen) return;
+    HapticFeedback.lightImpact();
+    setState(() => _isOpen = false);
+    _animController.reverse().then((_) {
+      _removeOverlay();
+    });
+  }
+
+  void _openDirectMessages() {
+    _closeMenu();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => MessengerChatSheet(
+        authController: widget.authController,
+      ),
+    );
+  }
+
+  void _openAiAssistant() {
+    _closeMenu();
+    context.push('/assistant');
+  }
+
+  OverlayEntry _createOverlayEntry() {
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final buttonOffset = renderBox.localToGlobal(Offset.zero);
+    final buttonSize = renderBox.size;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return OverlayEntry(
+      builder: (context) {
+        return Stack(
+          children: [
+            // Full-Screen Touch Absorber & Frosted Glass Backdrop Filter (100% Window Coverage)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _closeMenu,
+                behavior: HitTestBehavior.opaque,
+                child: AnimatedBuilder(
+                  animation: _animController,
+                  builder: (context, child) {
+                    final blurVal = 7.0 * _animController.value;
+                    return Opacity(
+                      opacity: _animController.value.clamp(0.0, 1.0),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(
+                          sigmaX: blurVal,
+                          sigmaY: blurVal,
+                        ),
+                        child: Container(
+                          color: (isDark ? Colors.black : const Color(0xFF0F172A))
+                              .withValues(alpha: (isDark ? 0.25 : 0.14) * _animController.value),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+            // Left Arc Action: Direct Messages (💬)
+            Positioned(
+              left: buttonOffset.dx - 64,
+              top: buttonOffset.dy - 54,
+              child: ScaleTransition(
+                scale: _expandAnimation,
+                child: FadeTransition(
+                  opacity: _animController,
+                  child: _buildActionButton(
+                    icon: HugeIcons.strokeRoundedBubbleChat,
+                    accentColor: theme.colorScheme.primary,
+                    onTap: _openDirectMessages,
+                    theme: theme,
+                    isDark: isDark,
+                    isHugeIcon: true,
+                  ),
+                ),
+              ),
+            ),
+
+            // Top Arc Action: Nexus AI Chatbot (🤖 Logo)
+            Positioned(
+              left: buttonOffset.dx + 2,
+              top: buttonOffset.dy - 78,
+              child: ScaleTransition(
+                scale: _expandAnimation,
+                child: FadeTransition(
+                  opacity: _animController,
+                  child: _buildActionButton(
+                    icon: Icons.smart_toy_outlined,
+                    accentColor: theme.colorScheme.secondary,
+                    onTap: _openAiAssistant,
+                    theme: theme,
+                    isDark: isDark,
+                    isLogoAsset: true,
+                  ),
+                ),
+              ),
+            ),
+
+            // Floating Trigger Close Button Overlay ('X')
+            Positioned(
+              left: buttonOffset.dx,
+              top: buttonOffset.dy,
+              child: GestureDetector(
+                onTap: _closeMenu,
+                child: Container(
+                  width: buttonSize.width,
+                  height: buttonSize.height,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 20,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: AnimatedRotation(
+                      duration: const Duration(milliseconds: 220),
+                      turns: 0.25,
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 24,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return GestureDetector(
+      onTap: _toggleMenu,
+      child: StreamBuilder<int>(
+        stream: FirebaseFirestore.instance
+            .collection('messages')
+            .snapshots()
+            .map((snap) {
+          final uid = widget.authController.currentUser?.uid ?? '';
+          final email =
+              widget.authController.userEmail.trim().toLowerCase();
+          if (uid.isEmpty) return 0;
+
+          return snap.docs.where((doc) {
+            final data = doc.data();
+            final senderId = (data['senderId'] as String? ?? '').trim();
+            final senderEmail =
+                (data['senderEmail'] as String? ?? '').trim().toLowerCase();
+            final recipientId = (data['recipientId'] as String? ?? '').trim();
+            final recipientEmail = (data['recipientEmail'] as String? ?? '')
+                .trim()
+                .toLowerCase();
+            final isRead = data['isRead'] as bool? ?? false;
+            final isUnsent = data['isUnsent'] as bool? ?? false;
+
+            final isFromOther = senderId.isNotEmpty
+                ? (senderId != uid)
+                : (senderEmail.isNotEmpty && senderEmail != email);
+            final isForMe = (recipientId.isNotEmpty && recipientId == uid) ||
+                (email.isNotEmpty && recipientEmail == email);
+
+            return isForMe && isFromOther && !isRead && !isUnsent;
+          }).length;
+        }),
+        builder: (context, snapshot) {
+          final unreadCount = snapshot.data ?? 0;
+
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: _isOpen
+                  ? (isDark ? const Color(0xFF1E293B) : Colors.white)
+                  : theme.colorScheme.surface,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: _isOpen
+                    ? (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0))
+                    : (isDark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFE2E8F0)),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: _isOpen ? 0.2 : 0.08),
+                  blurRadius: _isOpen ? 20 : 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Center(
+                  child: AnimatedRotation(
+                    duration: const Duration(milliseconds: 220),
+                    turns: _isOpen ? 0.25 : 0.0,
+                    child: Icon(
+                      _isOpen
+                          ? Icons.close_rounded
+                          : Icons.chat_bubble_outline_rounded,
+                      size: 24,
+                      color: _isOpen
+                          ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                          : theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+                if (unreadCount > 0 && !_isOpen)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: theme.colorScheme.surface, width: 1.5),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 18,
+                        minHeight: 18,
+                      ),
+                      child: Center(
+                        child: Text(
+                          unreadCount > 99 ? '99+' : '$unreadCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required dynamic icon,
+    required Color accentColor,
+    required VoidCallback onTap,
+    required ThemeData theme,
+    required bool isDark,
+    bool isHugeIcon = false,
+    bool isLogoAsset = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 54,
+          height: 54,
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isDark
+                  ? const Color(0xFF334155)
+                  : const Color(0xFFE2E8F0),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 14,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: isLogoAsset
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(27),
+                  child: Image.asset(
+                    'assets/icons/app_logo.png',
+                    width: 54,
+                    height: 54,
+                    fit: BoxFit.cover,
+                  ),
+                )
+              : Center(
+                  child: isHugeIcon
+                      ? HugeIcon(
+                          icon: icon,
+                          size: 22,
+                          color: theme.colorScheme.primary,
+                        )
+                      : Icon(
+                          icon,
+                          size: 24,
+                          color: accentColor,
+                        ),
+                ),
+        ),
       ),
     );
   }

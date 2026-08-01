@@ -323,10 +323,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showComingSoon(BuildContext context, String label) {
-    showGlassSnackbar(context, '$label — coming soon');
-  }
-
   void _showSnack(BuildContext context, String msg, {SnackbarType type = SnackbarType.info}) {
     showGlassSnackbar(context, msg, type: type);
   }

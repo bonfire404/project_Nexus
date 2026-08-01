@@ -36,12 +36,43 @@ class FeedbackFirestoreRepository {
     }
   }
 
-  /// Respond to a feedback item as an Administrator.
-  Future<void> respondToFeedback(String docId, String responseText) async {
+  /// Respond to a feedback item as an Administrator and dispatch direct message to recipient.
+  Future<void> respondToFeedback(
+    String docId,
+    String responseText, {
+    String? recipientEmail,
+    String? recipientUserId,
+  }) async {
     await _firestore.updateDocument(_collection, docId, {
       'response': responseText,
       'respondedAt': FieldValue.serverTimestamp(),
       'status': 'Responded',
+    });
+
+    // Dispatch direct announcement message to user inbox
+    try {
+      final formattedMessage =
+          "📢 Response to your Help & Support Report:\n\n\"$responseText\"\n\n🔒 Private Feedback: Only you can see this response to your submitted report.";
+
+      await FirebaseFirestore.instance.collection('messages').add({
+        'senderId': 'nexus_announcements',
+        'senderName': 'Nexus Support & Announcements',
+        'recipientId': recipientUserId ?? '',
+        'recipientEmail': recipientEmail ?? '',
+        'content': formattedMessage,
+        'feedbackId': docId,
+        'isFeedbackResponse': true,
+        'timestamp': DateTime.now().toIso8601String(),
+        'status': 'sent',
+      });
+    } catch (_) {}
+  }
+
+  /// Update feedback item status (e.g. from 'Responded' to 'Done').
+  Future<void> updateFeedbackStatus(String docId, String status) async {
+    await _firestore.updateDocument(_collection, docId, {
+      'status': status,
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 }

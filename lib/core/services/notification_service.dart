@@ -3,7 +3,6 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/foundation.dart';
 import 'package:nexus/core/services/firestore_service.dart';
 import 'package:nexus/firebase_options.dart';
 
@@ -24,11 +23,15 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
     if (title.isNotEmpty || body.isNotEmpty) {
       final service = NotificationService();
-      await service.initialize();
-      await service.showChatPushNotification(
-        senderName: title,
-        messageText: body,
-      );
+      await service.initializeBackground();
+      
+      // Only display manual local notification if it's a data-only payload (Android automatically displays notification-payload messages)
+      if (message.notification == null) {
+        await service.showChatPushNotification(
+          senderName: title,
+          messageText: body,
+        );
+      }
     }
   } catch (e) {
     debugPrint('Error in background FCM message handler: $e');
@@ -46,17 +49,15 @@ class NotificationService {
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
 
   bool _isInitialized = false;
+  bool _isBackgroundInitialized = false;
 
-  Future<void> initialize({String? userId}) async {
-    if (_isInitialized) return;
+  /// Lightweight initialization specifically safe for headless background isolates (No UI/Permissions dialogs)
+  Future<void> initializeBackground() async {
+    if (_isBackgroundInitialized) return;
 
     try {
       const androidSettings = AndroidInitializationSettings('@mipmap/launcher_icon');
-      const iosSettings = DarwinInitializationSettings(
-        requestAlertPermission: true,
-        requestBadgePermission: true,
-        requestSoundPermission: true,
-      );
+      const iosSettings = DarwinInitializationSettings();
 
       const initSettings = InitializationSettings(
         android: androidSettings,
@@ -67,7 +68,7 @@ class NotificationService {
         settings: initSettings,
       );
 
-      // Create High Priority Android Notification Channel for Zero-Delay & Terminated State
+      // Create High Priority Android Notification Channel for Zero-Delay & Terminated State (Android 8.0+)
       const AndroidNotificationChannel channel = AndroidNotificationChannel(
         'nexus_messages_channel',
         'Chat Messages',
@@ -81,6 +82,22 @@ class NotificationService {
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (androidPlugin != null) {
         await androidPlugin.createNotificationChannel(channel);
+      }
+
+      _isBackgroundInitialized = true;
+    } catch (e) {
+      debugPrint('Error initializing background NotificationService: $e');
+    }
+  }
+
+  Future<void> initialize({String? userId}) async {
+    await initializeBackground();
+    if (_isInitialized) return;
+
+    try {
+      final androidPlugin = _notificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin != null) {
         await androidPlugin.requestNotificationsPermission();
       }
 
@@ -91,7 +108,7 @@ class NotificationService {
         sound: true,
       );
 
-      // Request system push notification permissions
+      // Request system push notification permissions (Android 13+ & iOS)
       final settings = await _fcm.requestPermission(
         alert: true,
         badge: true,
@@ -153,13 +170,21 @@ class NotificationService {
   Future<void> showChatPushNotification({
     required String senderName,
     required String messageText,
+    bool isAnnouncement = false,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      
       final isChatEnabled = prefs.getBool('chat_notifications_enabled') ?? true;
-      if (!isChatEnabled) return;
+      final isAnnouncementsEnabled = prefs.getBool('announcements_enabled') ?? true;
 
-      const androidDetails = AndroidNotificationDetails(
+      if (isAnnouncement && !isAnnouncementsEnabled) return;
+      if (!isAnnouncement && !isChatEnabled) return;
+
+      final soundEnabled = prefs.getBool('notification_sound_enabled') ?? true;
+      final vibrationEnabled = prefs.getBool('notification_vibration_enabled') ?? true;
+
+      final androidDetails = AndroidNotificationDetails(
         'nexus_messages_channel',
         'Chat Messages',
         channelDescription: 'Real-time direct messages notifications',
@@ -167,17 +192,21 @@ class NotificationService {
         priority: Priority.high,
         showWhen: true,
         icon: '@mipmap/launcher_icon',
-        playSound: true,
-        enableVibration: true,
+        playSound: soundEnabled,
+        enableVibration: vibrationEnabled,
+        styleInformation: BigTextStyleInformation(
+          messageText,
+          contentTitle: senderName,
+        ),
       );
 
-      const iosDetails = DarwinNotificationDetails(
+      final iosDetails = DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
-        presentSound: true,
+        presentSound: soundEnabled,
       );
 
-      const notificationDetails = NotificationDetails(
+      final notificationDetails = NotificationDetails(
         android: androidDetails,
         iOS: iosDetails,
       );

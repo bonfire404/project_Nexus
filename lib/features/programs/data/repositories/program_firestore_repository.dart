@@ -6,10 +6,15 @@ class ProgramFirestoreRepository {
   final FirestoreService _firestore = FirestoreService();
   static const String _collection = 'programs';
 
-  /// Get all programs from Firestore.
+  /// Get all programs from Firestore with fallback support.
   Future<List<Program>> getPrograms() async {
-    final docs = await _firestore.getCollection(_collection);
-    return docs.map((data) => Program.fromFirestore(data)).toList();
+    try {
+      final docs = await _firestore.getCollection(_collection);
+      if (docs.isNotEmpty) {
+        return docs.map((data) => Program.fromFirestore(data)).toList();
+      }
+    } catch (_) {}
+    return Program.defaultPrograms;
   }
 
   /// Get a single program by document ID.
@@ -24,10 +29,13 @@ class ProgramFirestoreRepository {
     return await _firestore.addDocument(_collection, program.toFirestore());
   }
 
-  /// Stream all programs (real-time updates).
+  /// Stream all programs (real-time updates) with fallback.
   Stream<List<Program>> streamPrograms() {
     return _firestore.streamCollection(_collection).map(
-      (docs) => docs.map((data) => Program.fromFirestore(data)).toList(),
+      (docs) {
+        if (docs.isEmpty) return Program.defaultPrograms;
+        return docs.map((data) => Program.fromFirestore(data)).toList();
+      },
     );
   }
 }

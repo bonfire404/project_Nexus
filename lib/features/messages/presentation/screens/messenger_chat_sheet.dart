@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -2072,7 +2073,80 @@ class _MessengerChatSheetState extends State<MessengerChatSheet> with TickerProv
                                                     fontWeight: isMe ? FontWeight.normal : FontWeight.w500,
                                                   ),
                                                 ),
-                                                if (isEdited) ...[
+                                                 if (msg['isFeedbackResponse'] == true) ...[
+                                                   const SizedBox(height: 8),
+                                                   Container(
+                                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                     decoration: BoxDecoration(
+                                                       color: Colors.amber.withValues(alpha: 0.15),
+                                                       borderRadius: BorderRadius.circular(8),
+                                                       border: Border.all(
+                                                         color: Colors.amber.withValues(alpha: 0.4),
+                                                       ),
+                                                     ),
+                                                     child: const Row(
+                                                       mainAxisSize: MainAxisSize.min,
+                                                       children: [
+                                                         Icon(Icons.lock_outline, size: 12, color: Colors.amber),
+                                                         SizedBox(width: 4),
+                                                         Text(
+                                                           'Private Feedback • Only you can see this',
+                                                           style: TextStyle(
+                                                             fontSize: 10,
+                                                             fontWeight: FontWeight.w600,
+                                                           ),
+                                                         ),
+                                                       ],
+                                                     ),
+                                                   ),
+                                                   const SizedBox(height: 6),
+                                                   GestureDetector(
+                                                     onTap: () async {
+                                                       final fId = msg['feedbackId'] as String? ?? '';
+                                                       if (fId.isNotEmpty) {
+                                                         try {
+                                                           await FirebaseFirestore.instance
+                                                               .collection('feedback')
+                                                               .doc(fId)
+                                                               .update({'status': 'Done'});
+                                                           if (context.mounted) {
+                                                             showGlassSnackbar(
+                                                               context,
+                                                               'Feedback status updated to Done ✓',
+                                                               type: SnackbarType.success,
+                                                             );
+                                                           }
+                                                         } catch (_) {}
+                                                       }
+                                                     },
+                                                     child: Container(
+                                                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                       decoration: BoxDecoration(
+                                                         color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                                         borderRadius: BorderRadius.circular(10),
+                                                         border: Border.all(
+                                                           color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                                                         ),
+                                                       ),
+                                                       child: const Row(
+                                                         mainAxisSize: MainAxisSize.min,
+                                                         children: [
+                                                           Icon(Icons.check_circle_outline, size: 13, color: Color(0xFF10B981)),
+                                                           SizedBox(width: 4),
+                                                           Text(
+                                                             'React / Mark Done',
+                                                             style: TextStyle(
+                                                               fontSize: 11,
+                                                               fontWeight: FontWeight.w600,
+                                                               color: Color(0xFF10B981),
+                                                             ),
+                                                           ),
+                                                         ],
+                                                       ),
+                                                     ),
+                                                   ),
+                                                 ],
+                                                 if (isEdited) ...[
                                                   const SizedBox(height: 2),
                                                   Text(
                                                     '(edited)',

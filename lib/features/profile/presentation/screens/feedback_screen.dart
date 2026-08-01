@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nexus/core/enums/user_role.dart';
 import 'package:nexus/core/utils/snackbar_utils.dart';
 import 'package:nexus/features/auth/presentation/providers/auth_controller.dart';
@@ -176,7 +177,12 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                     try {
                       final docId = item['id'] as String? ?? '';
                       if (docId.isNotEmpty) {
-                        await _repository.respondToFeedback(docId, responseText);
+                        await _repository.respondToFeedback(
+                          docId,
+                          responseText,
+                          recipientEmail: item['email'] as String?,
+                          recipientUserId: item['userId'] as String?,
+                        );
                       }
                       if (mounted) {
                         showGlassSnackbar(
@@ -214,6 +220,16 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       return Scaffold(
         appBar: AppBar(
           title: const Text('Feedback Inbox'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                context.go('/home');
+              }
+            },
+          ),
         ),
         body: Skeletonizer(
           enabled: _isLoadingAdmin,
@@ -342,10 +358,27 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Send Feedback'),
-      ),
+    return PopScope(
+      canPop: Navigator.canPop(context),
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && !Navigator.canPop(context)) {
+          context.go('/home');
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Send Feedback'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                context.go('/home');
+              }
+            },
+          ),
+        ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Form(
@@ -453,6 +486,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }

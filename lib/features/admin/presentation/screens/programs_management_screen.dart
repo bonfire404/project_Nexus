@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:nexus/core/utils/snackbar_utils.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -226,6 +227,153 @@ class _ProgramsManagementScreenState extends State<ProgramsManagementScreen> {
     );
   }
 
+  void _showScheduleMeetingSheet() {
+    final theme = Theme.of(context);
+    final titleController = TextEditingController();
+    final timeController = TextEditingController(text: '6:00 PM');
+    final dateController = TextEditingController(text: 'Friday');
+    final linkController =
+        TextEditingController(text: 'https://meet.google.com/nexus-qna');
+    final descController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+                top: 24,
+                left: 24,
+                right: 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Schedule Meeting',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontFamily: 'Kameron',
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: titleController,
+                    decoration: const InputDecoration(
+                      labelText: 'Meeting Title',
+                      hintText: 'e.g. Program Sync & Q&A',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: dateController,
+                          decoration: const InputDecoration(
+                            labelText: 'Date / Day',
+                            hintText: 'e.g. Friday',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: timeController,
+                          decoration: const InputDecoration(
+                            labelText: 'Time',
+                            hintText: 'e.g. 6:00 PM',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: linkController,
+                    decoration: const InputDecoration(
+                      labelText: 'Meeting Link',
+                      hintText: 'https://meet.google.com/...',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: descController,
+                    decoration: const InputDecoration(
+                      labelText: 'Description',
+                      hintText: 'Brief agenda or notes for attendees...',
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final title = titleController.text.trim();
+                        if (title.isEmpty) return;
+                        Navigator.pop(ctx);
+
+                        try {
+                          await FirebaseFirestore.instance
+                              .collection('meetings')
+                              .add({
+                            'title': title,
+                            'date': dateController.text.trim(),
+                            'time': timeController.text.trim(),
+                            'link': linkController.text.trim(),
+                            'type': 'Team',
+                            'description': descController.text.trim(),
+                            'createdAt': FieldValue.serverTimestamp(),
+                          });
+
+                          if (mounted) {
+                            showGlassSnackbar(
+                              context,
+                              'Meeting "$title" scheduled & synced in real-time!',
+                              type: SnackbarType.success,
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            showGlassSnackbar(
+                              context,
+                              'Error scheduling meeting: $e',
+                              type: SnackbarType.error,
+                            );
+                          }
+                        }
+                      },
+                      child: const Text('Schedule Meeting'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -245,20 +393,34 @@ class _ProgramsManagementScreenState extends State<ProgramsManagementScreen> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              SizedBox(
-                height: 36,
-                child: ElevatedButton.icon(
-                  onPressed: _showNewProgramDialog,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('New'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    textStyle: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+              Row(
+                children: [
+                  IconButton(
+                    icon: HugeIcon(
+                      icon: HugeIcons.strokeRoundedCalendarAdd01,
+                      size: 22,
+                      color: theme.colorScheme.primary,
+                    ),
+                    tooltip: 'Schedule Meeting',
+                    onPressed: _showScheduleMeetingSheet,
+                  ),
+                  const SizedBox(width: 4),
+                  SizedBox(
+                    height: 36,
+                    child: ElevatedButton.icon(
+                      onPressed: _showNewProgramDialog,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('New'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        textStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ],
           ),

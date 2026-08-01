@@ -30,7 +30,7 @@ class _TypingIndicatorState extends State<TypingIndicator>
   Widget buildDot(double delay) {
     return AnimatedBuilder(
       animation: _controller,
-      builder: (_, __) {
+      builder: (context, child) {
         final value = (_controller.value - delay).clamp(0.0, 1.0);
 
         return Padding(
