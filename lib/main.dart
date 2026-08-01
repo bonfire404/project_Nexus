@@ -12,12 +12,30 @@ import 'package:nexus/core/services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  await AppVersion.init();
+
+  // Safely load environment variables
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint("Dotenv initialization skipped: $e");
+  }
+
+  // Safely initialize Firebase SDK & messaging
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  } catch (e) {
+    debugPrint("Firebase initialization deferred/failed: $e");
+  }
+
+  try {
+    await AppVersion.init();
+  } catch (e) {
+    debugPrint("AppVersion init skipped: $e");
+  }
+
   final authController = AuthController();
   final themeController = ThemeController();
   runApp(NexusApp(
