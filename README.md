@@ -71,7 +71,7 @@ lib/
 ### Installation
 1.  **Clone the Repository**
     ```bash
-    git clone https://github.com/bonfire404/project_Nexus.git
+    git clone https://github.com/BONFIREBASE/project_Nexus.git
     ```
 2.  **Initialize Project**
     ```bash
@@ -99,6 +99,18 @@ lib/
 - [x] **Functional Forms**: Added a fully validated **Feedback Form** with email and message length validation.
 - [x] **Loading UX**: Integrated **Skeletonizer** for polished loading states during data fetching.
 - [x] **Modular Repositories**: Implemented the repository pattern for scalable data management.
+
+---
+
+## 📄 License & Maintenance
+
+This project is licensed under the MIT License - see the [LICENSE](file:///c:/Users/Project/Project%20Nexus/LICENSE) file for details.
+
+- **Maintained by**: [Bonfire Base Studio](https://bonfire.base69.studio) (`support@base69.studio`)
+- **Original Code Collaborators (Team 14)**:
+  - **Herbert Botwe Sackey** – Team Leader, Ass. Developer
+  - **Bon Jury Pecaoco** – Ass. Team Leader, Lead Developer
+  - **Kodi Venkata Keerthan** – UI/UX Designer, Ass. Developer
 
 ---
 *Developed for the Excelerate Nexus Platform.
