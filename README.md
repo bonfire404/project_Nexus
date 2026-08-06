@@ -1,61 +1,42 @@
-# Nexus - Excelerate Unified Platform 🚀
+# Nexus - Excelerate Unified Platform
 
-**Nexus** is an enterprise-grade, role-based platform designed to bridge the gap between aspiring talent and industry opportunities. Built with a focus on performance, security, and aesthetic minimalism, Nexus streamlines program discovery, internship tracking, and administrative oversight.
-
----
-
-## 📱 App Preview (UI Prototype)
-
-**Role Selection**
-![Role Selection](assets/screenshots/Role_Selection.jpg)
-
-**Login Screen**
-![Login Screen](assets/screenshots/login_screen.jpg)
-
-**Personal Dashboard**
-![Dashboard](assets/screenshots/dashboard.jpg)
-
-**Program Discovery**
-![Program Listing](assets/screenshots/program_listing.jpg)
-
-**Program Details**
-![Program Details](assets/screenshots/program_details.jpg)
+Nexus is an enterprise-grade, role-based platform designed to bridge the gap between aspiring talent and industry opportunities. Built with a focus on performance, security, and structural clarity, Nexus streamlines program discovery, internship tracking, and administrative oversight.
 
 ---
 
-## ✨ Key Features
+## Key Features
 
-### 🔐 Multi-Role Authentication
+### Multi-Role Authentication
 - **Tailored Onboarding**: Choose between Applicant, Intern, or Administrator roles.
-- **Biometric Security**: Integrated Fingerprint/Face ID authentication for quick and secure access.
-- **Input Validation**: Robust form validation to ensure data integrity during sign-in.
+- **Biometric Security**: Integrated Fingerprint and Face ID authentication for secure access.
+- **Input Validation**: Form validation to ensure data integrity during sign-in.
 
-### 🔍 Dynamic Program Exploration
-- **Curated Listings**: Browse through professional programs with real-time metadata (Duration, Difficulty Level).
-- **Interactive Details**: Comprehensive program overviews with one-tap enrollment capabilities.
+### Dynamic Program Exploration
+- **Curated Listings**: Browse professional programs with real-time metadata (Duration, Difficulty Level).
+- **Interactive Details**: Program overviews with one-tap enrollment capabilities.
 
-### 🎨 Design System
-- **Typography**: A balanced mix of **Kameron** (Serif) for authoritative headings and **Lato** (Sans-serif) for high-readability body text.
-- **Dark Mode Support**: A premium, low-light interface designed for enterprise efficiency and reduced eye strain.
-- **HugeIcons Library**: Premium, high-stroke icons for a modern look and feel.
+### Design System
+- **Typography**: Kameron (Serif) for authoritative headings and Lato (Sans-serif) for high-readability body text.
+- **Dark Mode Support**: Low-light interface designed for enterprise efficiency and reduced eye strain.
+- **HugeIcons Library**: Modern, high-stroke iconography.
 
 ---
 
-## 🛠️ Technical Stack
+## Technical Stack
 
 - **Framework**: [Flutter](https://flutter.dev) (v3.x)
-- **Architecture**: Feature-Driven Layered Architecture (Clean Code Principles)
-- **Routing**: [GoRouter](https://pub.dev/packages/go_router) for declarative, deep-link ready navigation.
-- **State Management**: Controller-based pattern using `ChangeNotifier`.
-- **Security**: [Local Auth](https://pub.dev/packages/local_auth) for hardware-level biometrics.
+- **Architecture**: Feature-Driven Layered Architecture
+- **Routing**: [GoRouter](https://pub.dev/packages/go_router) for declarative navigation
+- **State Management**: Controller-based pattern using `ChangeNotifier`
+- **Security**: [Local Auth](https://pub.dev/packages/local_auth) for hardware-level biometrics
 
 ---
 
-## 🏗️ Project Architecture
+## Project Architecture
 
 ```text
 lib/
-├── app/          # Global config: Router, Themes, App Shell
+├── app/          # Global configuration: Router, Themes, App Shell
 ├── core/         # Shared: Enums, Constants, Global Styles
 ├── features/     # Encapsulated Modules
 │   ├── auth/     # Role selection, Login, Controller
@@ -66,51 +47,52 @@ lib/
 
 ---
 
-## ⚙️ Getting Started
+## Getting Started
 
 ### Installation
-1.  **Clone the Repository**
-    ```bash
-    git clone https://github.com/BONFIREBASE/project_Nexus.git
-    ```
-2.  **Initialize Project**
-    ```bash
-    flutter pub get
-    ```
-3.  **Launch Application**
-    ```bash
-    flutter run
-    ```
+
+1. **Clone the Repository**
+   ```bash
+   git clone https://github.com/BONFIREBASE/project_Nexus.git
+   ```
+
+2. **Initialize Project**
+   ```bash
+   flutter pub get
+   ```
+
+3. **Launch Application**
+   ```bash
+   flutter run
+   ```
 
 ---
 
-## ✅ Week 2 Milestones
+## Project Milestones
 
+### Week 2 Milestones
 - [x] **Role Selection Logic**: Implemented animated card-based selection.
 - [x] **Secure Sign-In**: Built interactive login with biometric fallback.
-- [x] **Unified Navigation**: Set up complex routing with `GoRouter` redirects.
-- [x] **Discovery Modules**: Developed high-fidelity Program Listing and Detail views.
+- [x] **Unified Navigation**: Configured routing with `GoRouter` redirects.
+- [x] **Discovery Modules**: Developed Program Listing and Detail views.
+
+### Week 3 Milestones
+- [x] **API Integration**: Program Listing and Details connected to JSON data sources.
+- [x] **Functional Forms**: Feedback form with email and message length validation.
+- [x] **Loading UX**: Integrated Skeletonizer for loading states.
+- [x] **Modular Repositories**: Implemented repository pattern for data management.
 
 ---
 
-## ✅ Week 3 Milestones
+## License & Maintenance
 
-- [x] **API-Connected App**: Program Listing and Details now fetch data from a mock JSON source (`assets/data/programs.json`).
-- [x] **Functional Forms**: Added a fully validated **Feedback Form** with email and message length validation.
-- [x] **Loading UX**: Integrated **Skeletonizer** for polished loading states during data fetching.
-- [x] **Modular Repositories**: Implemented the repository pattern for scalable data management.
-
----
-
-## 📄 License & Maintenance
-
-This project is licensed under the MIT License - see the [LICENSE](file:///c:/Users/Project/Project%20Nexus/LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 - **Maintained by**: [Bonfire Base Studio](https://bonfire.base69.studio) (`support@base69.studio`)
 - **Original Code Collaborators (Team 14)**:
-  - **Herbert Botwe Sackey** – Team Leader, Ass. Developer
-  - **Bon Jury Pecaoco** – Ass. Team Leader, Lead Developer
-  - **Kodi Venkata Keerthan** – UI/UX Designer, Ass. Developer
+  - **Herbert Botwe Sackey** – Team Leader, Associate Developer
+  - **Bon Jury Pecaoco** – Assistant Team Leader, Lead Developer
+  - **Kodi Venkata Keerthan** – UI/UX Designer, Associate Developer
 
 ---
-*Developed for the Excelerate Nexus Platform.
+Developed for the Excelerate Nexus Platform.
